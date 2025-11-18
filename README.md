@@ -1,26 +1,38 @@
-# 日本住所 FCL 到達性チェックツール
+# 日本地址 FCL 可达性检查工具
 
-![Demo](assets/demo.gif)
+这是一个基于 Flask 的 Web 工具，用于货代公司检查日本地址是否可收整箱（FCL）。输入地址后，自动使用 NLP 解析 + 地图 API 判断道路可达性，并推荐最近港口。
 
-このツールは、日本国内の住所を入力するだけで、40フィートコンテナ（FCL）の到達可能性を即座に判断し、最寄りの港湾を推薦します。貨物代理店向けに設計され、道路幅・制限区域を考慮したAIベースの判断です。
+## 功能
+- **地址解析**：NLP 提取行政区、番地等。
+- **地图集成**：国土地理院 Geocoding + OSM 道路查询。
+- **规则判断**：黑白名单 + 道路宽度（>=3.5m）。
+- **港口推荐**：距离计算 + 拖车时间估算。
+- **批量支持**：前台多行输入，一键处理。
+- **输出**：全日文界面 + 结果。
 
-## 機能
-- **住所解析**: 都道府県・市区町村を自動抽出
-- **到達性判断**: 道路幅3.5m以上か、制限区域（祇園・銀座等）かをチェック
-- **港湾推薦**: 距離計算 + 牽引時間推定
-- **バッチ対応**: 複数住所の同時入力可能
-- **モバイル対応**: スマホで即使用
+jp-fcl-checker/
+├── app.py                     # ← 中文注释（后台逻辑）
+├── config/ports.yaml          # ← 中文注释 + 日本港口数据
+├── templates/index.html       # ← 完全日文界面 + 批量输入支持
+├── utils/
+│   ├── address_parser.py      # ← 中文注释
+│   ├── geocoder.py            # ← 中文注释（国土地理院API）
+│   ├── osm_roads.py           # ← 中文注释
+│   └── rules.py               # ← 中文注释（含黑白名单规则）
+├── requirements.txt
+├── Dockerfile
+├── docker-compose.yml
+└── README.md                  # ← 默认中文（含部署步骤）
 
-## デモ
-- 入力: `神奈川県横浜市鶴見区大黒ふ頭1-2-3` → **可能** / Yokohama Port 2.1km
-- 入力: `京都府京都市東山区祇園町南側579` → **不可能** / Osaka Port 52km
+## 部署步骤
 
-## デプロイ
-GitHub Pages でホスト。Settings > Pages > main branch を選択。
+### 1. 本地运行（开发测试）
+```bash
+# 安装依赖
+pip install -r requirements.txt
 
-## カスタマイズ
-- `index.html`: 会社ロゴ/タイトル変更
-- `data/ports.json`: 港湾追加/編集
-- `script.js`: 判断ルール拡張
+# 启动
+python app.py
 
-© 2025 Your Company. MIT License.
+# 浏览器访问
+http://localhost:5000

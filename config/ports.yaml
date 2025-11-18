@@ -1,0 +1,42 @@
+# 配置说明：日本主要港口清单（基于官方经纬度数据）
+# - name: 港口名称（日文）
+# - code: UN/LOCODE 港口代码
+# - lat/lng: 经纬度（来源：国土地理院 + 港口官网）
+# 可随时添加/删除港口，重启服务生效
+
+destination_ports:
+  - name: "横滨港"  # Yokohama Port
+    code: "JPYOK"
+    lat: 35.4518
+    lng: 139.6857
+    region: "関東"
+  - name: "東京港"  # Tokyo Port (更新：35.7167 N, 139.7667 E)
+    code: "JPTYO"
+    lat: 35.7167
+    lng: 139.7667
+    region: "関東"
+  - name: "大阪港"  # Osaka Port
+    code: "JPOSA"
+    lat: 34.6667
+    lng: 135.4167
+    region: "関西"
+  - name: "神戸港"  # Kobe Port
+    code: "JPUKB"
+    lat: 34.6833
+    lng: 135.2167
+    region: "関西"
+  - name: "名古屋港"  # Nagoya Port
+    code: "JPNGO"
+    lat: 35.0833
+    lng: 136.8833
+    region: "中部"
+  - name: "博多港"  # Hakata Port (Fukuoka)
+    code: "JPHKT"
+    lat: 33.6167
+    lng: 130.4000
+    region: "九州"
+  - name: "広島港"  # Hiroshima Port (新增：34.4 N, 132.4667 E)
+    code: "JPHIJ"
+    lat: 34.4000
+    lng: 132.4667
+    region: "中国"
