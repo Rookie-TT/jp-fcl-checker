@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>日本住所 FCL 到達性チェックツール | Japan FCL Accessibility Checker</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <img src="assets/logo-placeholder.png" alt="Company Logo" class="logo" onerror="this.style.display='none'">
+            <h1>日本住所 FCL 到達性チェックツール</h1>
+            <p>Japan Address FCL Accessibility Checker - 住所を入力して、40フィートコンテナの到達可能性を即座に確認</p>
+        </header>
+
+        <main>
+            <div class="input-section">
+                <label for="address">住所を入力 (Enter Address):</label>
+                <textarea id="address" placeholder="例: 神奈川県横浜市鶴見区大黒ふ頭1-2-3&#10;Example: Kanagawa-ken Yokohama-shi Tsurumi-ku Daikoku-futo 1-2-3"></textarea>
+                <button onclick="checkAddress()">チェック実行 / Run Check</button>
+            </div>
+
+            <div id="result" class="result hidden">
+                <h2>結果 / Results</h2>
+                <div id="output"></div>
+            </div>
+
+            <div class="demo">
+                <img src="assets/demo.gif" alt="Demo" onerror="this.style.display='none'">
+                <p>複数住所の入力もサポート (Supports batch input)</p>
+            </div>
+        </main>
+
+        <footer>
+            <p>&copy; 2025 Your Company. Powered by Grok AI. | ご質問: contact@yourcompany.jp</p>
+        </footer>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
