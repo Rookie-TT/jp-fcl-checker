@@ -1,6 +1,5 @@
 Flask==2.3.3
 requests==2.31.0
-PyYAML==6.0
-
+PyYAML==6.0.2
 japanese-address-parser-py==0.1.4
 gunicorn==21.2.0
