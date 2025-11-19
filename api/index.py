@@ -10,7 +10,8 @@ import requests
 from utils.geocoder import geocode_gsi
 from utils.osm_roads import query_osm_roads
 from utils.rules import can_access_fcl
-from jp_address_parser import parse  # 如果你装了这个包
+#from jp_address_parser import parse  # 如果你装了这个包
+from japanese_address_parser_py import parse  # 正确导入路径
 # ✅ 关键修复：用 __file__ 定位项目根目录
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 TEMPLATE_DIR = os.path.join(BASE_DIR, "templates")  # ✅ 指向项目根/templates/
@@ -62,7 +63,7 @@ def internal_error(error):
 
 # 测试导入（在文件顶端加，确认依赖）
 try:
-    from jp_address_parser import parse
+    from japanese_address_parser_py import parse
     print("JP Parser loaded OK")  # 会出现在 Function Logs
 except ImportError as e:
     print(f"Import error: {e}")  # 暴露问题
@@ -123,6 +124,7 @@ def check():
 from mangum import Mangum
 handler = Mangum(app)   # 正确写法！不要写成 def handler() 那种
 # =========================================================================
+
 
 
 
