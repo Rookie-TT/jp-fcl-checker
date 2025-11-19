@@ -52,12 +52,54 @@ def index():
 
 @app.route("/check", methods=["POST"])
 def check():
-    # 你原来的全部逻辑直接粘贴进来（略去 100 行，保持不变）
-    # ...（你原来的 check() 函数内容全部保留）
-    # 为了不贴太长，这里省略，你直接把原来 app.py 里的 check 函数复制进来就行
-    pass  # ← 替换成你原来的完整 check() 实现
+    """API：批量/单地址检查（返回日文 JSON）。"""
+    addresses = request.json.get("addresses", [])  # 支持批量（list）
+    if isinstance(addresses, str):
+        addresses = [addresses.strip()]  # 单地址转为 list
+    
+    if not addresses:
+        return jsonify({"error": "住所を入力してください"})
+    
+    results = []
+    for addr in addresses:
+        if not addr.strip():
+            continue
+        
+        # 1. NLP 地址解析
+        parsed = {"full": addr, "prefecture": "", "city": "", "town": "", "rest": ""}
+        try:
+            parsed.update(parse(addr)._asdict())
+        except:
+            pass
+        
+        # 2. 地图：地理编码
+        lat, lng = geocode_gsi(addr)
+        if not lat:
+            results.append({"error": "座標解析不可"})
+            continue
+        
+        # 3. 地图：OSM 道路
+        roads = query_osm_roads(lat, lng)
+        
+        # 4. 规则：可达性判断
+        can_access, reason = can_access_fcl(roads, parsed)
+        
+        # 5. 最近港口
+        port_info = get_nearest_port(lat, lng)
+        
+        results.append({
+            "address": addr,
+            "can_access": can_access,
+            "reason": reason,  # 日文理由
+            "nearest_port": f"{port_info['name']}（{port_info['code']}）",
+            "distance": f"約{port_info['distance']}km",
+            "estimated_time": f"予想牽引時間：{port_info['estimated_time']}"
+        })
+    
+    return jsonify({"results": results})
 
 # ============ 下面这两行是 Vercel 必须的，不能删也不能乱写顺序！ ============
 from mangum import Mangum
 handler = Mangum(app)   # 正确写法！不要写成 def handler() 那种
 # =========================================================================
+
