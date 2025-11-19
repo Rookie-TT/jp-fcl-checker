@@ -17,7 +17,13 @@ from utils.jp_address_parser_simple import parse
 # ✅ 关键修复：用 __file__ 定位项目根目录
 # 超级稳的路径定位（Vercel + 本地都兼容）
 FILE = os.path.abspath(__file__)
-BASE_DIR = os.path.dirname(os.path.dirname(FILE))  # 项目根目录
+# Vercel 环境强制使用绝对路径
+if os.getenv("VERCEL") == "1":
+    BASE_DIR = "/var/task"
+else:
+    BASE_DIR = os.path.dirname(os.path.dirname(FILE))  # 项目根目录
+TEMPLATE_DIR = os.path.join(BASE_DIR, "templates")
+CONFIG_DIR = os.path.join(BASE_DIR, "config")
 TEMPLATE_DIR = os.path.join(BASE_DIR, "templates")
 CONFIG_DIR = os.path.join(BASE_DIR, "config")
 
@@ -124,6 +130,7 @@ handler = Mangum(app)   # 正确写法！不要写成 def handler() 那种
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
+
 
 
 
