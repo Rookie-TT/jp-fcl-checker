@@ -45,6 +45,21 @@ def get_nearest_port(lat, lng):
         "distance": dist,
         "estimated_time": time_str
     }
+# 新增：运行时调试（临时加，成功后删）
+@app.errorhandler(404)
+def not_found(error):
+    return jsonify({"error": "Route not found"}), 404
+
+@app.errorhandler(500)
+def internal_error(error):
+    return jsonify({"error": "Internal server error", "debug": str(error)}), 500
+
+# 测试导入（在文件顶端加，确认依赖）
+try:
+    from jp_address_parser import parse
+    print("JP Parser loaded OK")  # 会出现在 Function Logs
+except ImportError as e:
+    print(f"Import error: {e}")  # 暴露问题
 
 @app.route("/")
 def index():
@@ -102,4 +117,5 @@ def check():
 from mangum import Mangum
 handler = Mangum(app)   # 正确写法！不要写成 def handler() 那种
 # =========================================================================
+
 
