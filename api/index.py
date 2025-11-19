@@ -1,19 +1,25 @@
 # api/index.py
 # 2025 年 Vercel 部署专用入口（已测试 100% 成功）
-
+import os
 from flask import Flask, render_template, request, jsonify
 import math
 import yaml
 import requests
-import os
 
 # 导入你的工具函数（相对路径要改对！）
 from utils.geocoder import geocode_gsi
 from utils.osm_roads import query_osm_roads
 from utils.rules import can_access_fcl
 from jp_address_parser import parse  # 如果你装了这个包
-
-app = Flask(__name__, template_folder="../templates")  # 注意路径！！！
+# ✅ 关键修复：用 __file__ 定位项目根目录
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+TEMPLATE_DIR = os.path.join(BASE_DIR, "templates")  # ✅ 指向项目根/templates/
+CONFIG_DIR = os.path.join(BASE_DIR, "config")
+# app = Flask(__name__, template_folder="../templates")  # 注意路径！！！
+app = Flask(__name__, template_folder=TEMPLATE_DIR)  # ✅ 正确路径
+# 修改加载配置方式（避免路径错误）
+with open(os.path.join(CONFIG_DIR, "ports.yaml"), encoding="utf-8") as f:
+    PORTS = yaml.safe_load(f)["destination_ports"]
 
 # 加载港口配置
 try:
@@ -117,5 +123,6 @@ def check():
 from mangum import Mangum
 handler = Mangum(app)   # 正确写法！不要写成 def handler() 那种
 # =========================================================================
+
 
 
