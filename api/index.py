@@ -1,5 +1,6 @@
 # api/index.py
 # 2025 年 Vercel 部署专用入口（已测试 100% 成功）
+print("Step 1: Starting index.py import")
 import os
 from flask import Flask, render_template, request, jsonify
 import math
@@ -116,6 +117,7 @@ def check():
 from mangum import Mangum
 handler = Mangum(app)   # 正确写法！不要写成 def handler() 那种
 # =========================================================================
+
 
 
 
