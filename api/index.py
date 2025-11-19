@@ -27,6 +27,7 @@ with open(PORTS_PATH, encoding="utf-8") as f:
 from utils.geocoder import geocode_gsi
 from utils.osm_roads import query_osm_roads
 # from utils.rules import can_access_fcl, PORTS as RULES_PORTS  # 防止 rules 里再读一次
+from utils.rules import can_access_fcl    # ← 取消注释或直接加这行！
 from utils.jp_address_parser_simple import parse
 
 # Haversine 距离计算
@@ -108,4 +109,5 @@ handler = Mangum(app)
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
+
 
