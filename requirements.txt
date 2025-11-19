@@ -5,8 +5,8 @@ Jinja2==3.1.4
 PyYAML==6.0.2
 requests==2.32.3
 
-# 核心：日本地址 NLP 解析库（address_parser.py 使用）
-jp-address-parser==0.4.1
+# 正确包名：日本地址 NLP 解析库
+japanese-address-parser-py==0.2.10
 
 # utils 可能需要的额外（根据你的 py 文件）
 # 如果 geocoder 用 geopy 或 folium，加下面
@@ -14,3 +14,4 @@ jp-address-parser==0.4.1
 # folium==0.17.0
 # 如果 osm_roads 用 osmnx 或 similar，加
 # osmnx==1.9.7
+
