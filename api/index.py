@@ -23,15 +23,6 @@ app = Flask(__name__, template_folder=TEMPLATE_DIR)  # ✅ 正确路径
 with open(os.path.join(CONFIG_DIR, "ports.yaml"), encoding="utf-8") as f:
     PORTS = yaml.safe_load(f)["destination_ports"]
 
-# 加载港口配置
-try:
-    with open(os.path.join(CONFIG_DIR, "ports.yaml"), encoding="utf-8") as f:
-        PORTS = yaml.safe_load(f)["destination_ports"]
-except Exception as e:
-    # Vercel 有时路径会变，用绝对路径兜底
-    with open(os.path.join(os.path.dirname(__file__), "../config/ports.yaml"), "r", encoding="utf-8") as f:
-        PORTS = yaml.safe_load(f)["destination_ports"]
-
 def haversine(lat1, lon1, lat2, lon2):
     R = 6371
     dlat = math.radians(lat2 - lat1)
@@ -125,6 +116,7 @@ def check():
 from mangum import Mangum
 handler = Mangum(app)   # 正确写法！不要写成 def handler() 那种
 # =========================================================================
+
 
 
 
