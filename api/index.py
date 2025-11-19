@@ -15,13 +15,17 @@ from utils.rules import can_access_fcl
 #from japanese_address_parser_py import parse  # 正确导入路径
 from utils.jp_address_parser_simple import parse
 # ✅ 关键修复：用 __file__ 定位项目根目录
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-TEMPLATE_DIR = os.path.join(BASE_DIR, "templates")  # ✅ 指向项目根/templates/
+# 超级稳的路径定位（Vercel + 本地都兼容）
+FILE = os.path.abspath(__file__)
+BASE_DIR = os.path.dirname(os.path.dirname(FILE))  # 项目根目录
+TEMPLATE_DIR = os.path.join(BASE_DIR, "templates")
 CONFIG_DIR = os.path.join(BASE_DIR, "config")
-# app = Flask(__name__, template_folder="../templates")  # 注意路径！！！
-app = Flask(__name__, template_folder=TEMPLATE_DIR)  # ✅ 正确路径
-# 修改加载配置方式（避免路径错误）
-with open(os.path.join(CONFIG_DIR, "ports.yaml"), encoding="utf-8") as f:
+
+app = Flask(__name__, template_folder=TEMPLATE_DIR)
+
+# 加载港口配置（只加载一次）
+PORTS_CONFIG_PATH = os.path.join(CONFIG_DIR, "ports.yaml")
+with open(PORTS_CONFIG_PATH, encoding="utf-8") as f:
     PORTS = yaml.safe_load(f)["destination_ports"]
 
 def haversine(lat1, lon1, lat2, lon2):
@@ -120,6 +124,7 @@ handler = Mangum(app)   # 正确写法！不要写成 def handler() 那种
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
+
 
 
 
