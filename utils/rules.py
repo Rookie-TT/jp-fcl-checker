@@ -4,16 +4,16 @@
 
 import yaml
 import os
+from collections import namedtuple
 
-# 修复：用 __file__ 定位到项目根目录下的 config
-def load_ports():
-    current_dir = os.path.dirname(os.path.abspath(__file__))
-    config_path = os.path.join(current_dir, "..", "config", "ports.yaml")
-    with open(config_path, "r", encoding="utf-8") as f:
-        return yaml.safe_load(f)["destination_ports"]
-
-# ← 加上这一行！全局 PORTS 变量（就算 can_access_fcl 不直接用，也防止导入崩溃）
-PORTS = load_ports()        # ← 这就是你缺失的救命稻草！
+# 直接复用 index.py 已经加载好的 PORTS（关键修复）
+try:
+    from api.index import PORTS  # ← 这样最稳！
+except ImportError:
+    # 备用方案：手动定位（Vercel 也能工作）
+    BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    with open(os.path.join(BASE_DIR, "config", "ports.yaml"), "r", encoding="utf-8") as f:
+        PORTS = yaml.safe_load(f)["destination_ports"]
 
 def is_restricted_area(parsed):
     """检查是否在限制区域（黑名单）。"""
@@ -51,5 +51,6 @@ def can_access_fcl(roads, parsed):
     
 
     return True, f"道路幅{min_width}m以上、40HQ対応可能"
+
 
 
