@@ -4,6 +4,8 @@ mangum==0.17.0
 Jinja2==3.1.4
 PyYAML==6.0.2
 requests==2.32.3
+# 建议加上，有些环境需要
+gunicorn==22.0.0
 
 # 正确包名：日本地址 NLP 解析库
 #japanese-address-parser-py==0.2.10
@@ -14,5 +16,6 @@ requests==2.32.3
 # folium==0.17.0
 # 如果 osm_roads 用 osmnx 或 similar，加
 # osmnx==1.9.7
+
 
 
