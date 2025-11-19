@@ -12,6 +12,9 @@ def load_ports():
     with open(config_path, "r", encoding="utf-8") as f:
         return yaml.safe_load(f)["destination_ports"]
 
+# ← 加上这一行！全局 PORTS 变量（就算 can_access_fcl 不直接用，也防止导入崩溃）
+PORTS = load_ports()        # ← 这就是你缺失的救命稻草！
+
 def is_restricted_area(parsed):
     """检查是否在限制区域（黑名单）。"""
     # 黑名单：古街/商业区，无法进入集装箱车
@@ -48,3 +51,4 @@ def can_access_fcl(roads, parsed):
     
 
     return True, f"道路幅{min_width}m以上、40HQ対応可能"
+
