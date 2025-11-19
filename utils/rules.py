@@ -52,3 +52,4 @@ def can_access_fcl(roads, parsed):
 
     return True, f"道路幅{min_width}m以上、40HQ対応可能"
 
+
