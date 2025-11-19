@@ -10,7 +10,13 @@ import requests
 from jp_address_parser import parse  # NLP 集成
 # api/index.py
 from app import app as application  # 如果你用的是 Flask
+# api/index.py
+from app import app as application  # 如果你用的是 Flask
 
+# Vercel 要求这样导出
+def handler(event, context=None):
+    from mangum import Mangum
+    return Mangum(application)(event, context)
 # Vercel 要求这样导出
 def handler(event, context=None):
     from mangum import Mangum
@@ -115,4 +121,5 @@ def check():
     return jsonify({"results": results})
 
 if __name__ == "__main__":
+
     app.run(host="0.0.0.0", port=5000, debug=True)
