@@ -2,7 +2,7 @@
 Flask==3.0.3
 mangum==0.17.0
 Jinja2==3.1.4
-pyyaml==6.0.2        # 必须全小写！！
+pyyaml==6.0.2
 requests==2.32.3
 gunicorn==22.0.0
 
@@ -15,6 +15,7 @@ gunicorn==22.0.0
 # folium==0.17.0
 # 如果 osm_roads 用 osmnx 或 similar，加
 # osmnx==1.9.7
+
 
 
 
