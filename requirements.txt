@@ -1,6 +1,16 @@
-Flask==2.3.3
-requests==2.31.0
+# requirements.txt - 专为你的 jp-fcl-checker 项目定制（Vercel 部署必备）
+Flask==3.0.3
+mangum==0.17.0
+Jinja2==3.1.4
 PyYAML==6.0.2
-japanese-address-parser-py==0.1.4
-gunicorn==21.2.0
-mangum>=0.17.0
+requests==2.32.3
+
+# 核心：日本地址 NLP 解析库（address_parser.py 使用）
+jp-address-parser==0.4.1
+
+# utils 可能需要的额外（根据你的 py 文件）
+# 如果 geocoder 用 geopy 或 folium，加下面
+# geopy==2.4.1
+# folium==0.17.0
+# 如果 osm_roads 用 osmnx 或 similar，加
+# osmnx==1.9.7
