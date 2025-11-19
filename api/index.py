@@ -118,6 +118,8 @@ from mangum import Mangum
 handler = Mangum(app)   # 正确写法！不要写成 def handler() 那种
 # =========================================================================
 
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=5000, debug=True)
 
 
 
