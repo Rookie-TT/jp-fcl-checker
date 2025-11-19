@@ -5,9 +5,11 @@
 import yaml
 import os
 
+# 修复：用 __file__ 定位到项目根目录下的 config
 def load_ports():
-    """加载港口配置（从 YAML）。"""
-    with open("config/ports.yaml", encoding="utf-8") as f:
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    config_path = os.path.join(current_dir, "..", "config", "ports.yaml")
+    with open(config_path, "r", encoding="utf-8") as f:
         return yaml.safe_load(f)["destination_ports"]
 
 def is_restricted_area(parsed):
@@ -44,4 +46,5 @@ def can_access_fcl(roads, parsed):
     if min_width < 3.5:
         return False, f"最近道路幅{min_width}m、コンテナ車進入不可"
     
+
     return True, f"道路幅{min_width}m以上、40HQ対応可能"
