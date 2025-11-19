@@ -8,8 +8,20 @@
   ],
   "routes": [
     {
-      "src": "/(.*)",
+      "src": "/",
       "dest": "api/index.py"
+    },
+    {
+      "src": "/check",
+      "dest": "api/index.py"
+    },
+    {
+      "src": "/batch",
+      "dest": "api/index.py"
+    },
+    {
+      "src": "/(.*)\\.(js|css|png|jpg|svg|ico)",
+      "status": 404
     }
   ]
 }
