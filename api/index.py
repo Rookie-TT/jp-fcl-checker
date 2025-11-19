@@ -25,7 +25,7 @@ with open(os.path.join(CONFIG_DIR, "ports.yaml"), encoding="utf-8") as f:
 
 # 加载港口配置
 try:
-    with open("config/ports.yaml", encoding="utf-8") as f:
+    with open(os.path.join(CONFIG_DIR, "ports.yaml"), encoding="utf-8") as f:
         PORTS = yaml.safe_load(f)["destination_ports"]
 except Exception as e:
     # Vercel 有时路径会变，用绝对路径兜底
@@ -125,6 +125,7 @@ def check():
 from mangum import Mangum
 handler = Mangum(app)   # 正确写法！不要写成 def handler() 那种
 # =========================================================================
+
 
 
 
