@@ -149,6 +149,19 @@
 
         <textarea id="addresses" placeholder="例:&#10;神奈川県横浜市鶴見区大黒ふ頭1-2-3&#10;京都府京都市東山区祇園町南側579"></textarea>
         <div class="batch-note">※ 複数住所を改行で入力可能（バッチ処理）。</div>
+        
+        <!-- 车辆类型选择 -->
+        <div style="margin: 15px 0;">
+            <label for="vehicleType" style="font-weight: bold; display: block; margin-bottom: 8px;">車両タイプ:</label>
+            <select id="vehicleType" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 16px; box-sizing: border-box;">
+                <option value="40ft">40ft用トレーラー（幅2.5m）</option>
+                <option value="20ft">20ft用トレーラー（幅2.5m）</option>
+                <option value="10t">10t飛翼車（幅2.48～2.50m）</option>
+                <option value="4t">4t飛翼車（幅2.30～2.35m）</option>
+                <option value="2t">2t箱型トラック（幅1.88～2.10m）</option>
+            </select>
+        </div>
+        
         <button id="checkBtn" onclick="checkAddresses()">チェック実行</button>
 
         <!-- 进度条 -->
@@ -163,6 +176,8 @@
     <script>
         async function checkAddresses() {
             const addresses = document.getElementById('addresses').value.trim().split('\n').filter(a => a.trim());
+            const vehicleType = document.getElementById('vehicleType').value;
+            
             if (!addresses.length) {
                 alert('住所を入力してください');
                 return;
@@ -201,7 +216,10 @@
                 const res = await fetch('/check', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ addresses: addresses })
+                    body: JSON.stringify({ 
+                        addresses: addresses,
+                        vehicle_type: vehicleType 
+                    })
                 });
 
                 const data = await res.json();
