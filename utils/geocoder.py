@@ -88,6 +88,30 @@ def geocode_nominatim(address: str, country_code="jp", timeout=8):
         return None, None
 
 
+def normalize_address(address: str):
+    """
+    标准化日本地址格式
+    例如：東京都中央区銀座4-6-16 → 東京都中央区銀座4丁目6-16
+    """
+    # 移除建筑物名称（在空格或全角空格后的内容）
+    addr = re.sub(r'[　\s]+(.*?(ビル|タワー|マンション|階|F|内|近く|付近).*)$', '', address)
+    
+    # 转换 X-Y-Z 格式为 X丁目Y-Z（如果前面没有丁目）
+    # 例如：銀座4-6-16 → 銀座4丁目6-16
+    def add_chome(match):
+        prefix = match.group(1)
+        num1 = match.group(2)
+        rest = match.group(3)
+        # 检查前面是否已经有丁目
+        if '丁目' not in prefix[-3:]:
+            return f"{prefix}{num1}丁目{rest}"
+        return match.group(0)
+    
+    addr = re.sub(r'([^\d丁目])(\d+)-(\d+[-\d]*)', add_chome, addr)
+    
+    return addr.strip()
+
+
 def simplify_address(address: str):
     """
     逐步简化日本地址，生成多个候选地址
@@ -99,42 +123,57 @@ def simplify_address(address: str):
         "神奈川県横浜市鶴見区",
     ]
     """
-    candidates = [address]
+    # 先标准化地址
+    normalized = normalize_address(address)
+    candidates = []
+    
+    # 添加标准化后的地址
+    if normalized not in candidates:
+        candidates.append(normalized)
+    
+    # 如果原地址不同，也添加
+    if address != normalized and address not in candidates:
+        candidates.append(address)
+    
+    # 基于标准化地址生成简化版本
+    base_addr = normalized
     
     # 移除建筑物名称、楼层等
-    addr = re.sub(r'[　\s]+.*?(ビル|タワー|マンション|階|F).*$', '', address)
-    if addr != address and addr not in candidates:
+    addr = re.sub(r'[　\s]+.*?(ビル|タワー|マンション|階|F).*$', '', base_addr)
+    if addr != base_addr and addr not in candidates:
         candidates.append(addr)
     
-    # 移除番地号（1番地、1-2-3等）
-    addr = re.sub(r'[0-9０-９]+番地?$', '', address)
-    if addr != address and addr not in candidates:
+    # 移除番地号（1番地等）
+    addr = re.sub(r'[0-9０-９]+番地?$', '', base_addr)
+    if addr != base_addr and addr not in candidates:
         candidates.append(addr)
     
-    # 移除详细号码（1-2-3、1丁目2番3号等）
-    addr = re.sub(r'[0-9０-９\-−ー]+号?$', '', address)
-    if addr != address and addr not in candidates:
+    # 移除最后的号码部分（-16、16号等）
+    addr = re.sub(r'[-−ー][0-9０-９]+号?$', '', base_addr)
+    if addr != base_addr and addr not in candidates:
         candidates.append(addr)
     
-    # 移除番号（2番、3番等）
-    addr = re.sub(r'[0-9０-９]+番$', '', address)
-    if addr != address and addr not in candidates:
-        candidates.append(addr)
+    # 只保留到丁目+第一个号码（例如：4丁目6）
+    match = re.search(r'(.*?[0-9０-９]+丁目[0-9０-９]+)', base_addr)
+    if match:
+        addr = match.group(1)
+        if addr not in candidates:
+            candidates.append(addr)
     
     # 只保留到丁目
-    match = re.search(r'(.*?[0-9０-９]+丁目)', address)
+    match = re.search(r'(.*?[0-9０-９]+丁目)', base_addr)
     if match:
         addr = match.group(1)
         if addr not in candidates:
             candidates.append(addr)
     
     # 移除丁目后的所有内容
-    addr = re.sub(r'[0-9０-９]+丁目.*$', '', address)
-    if addr != address and len(addr) > 5 and addr not in candidates:
+    addr = re.sub(r'[0-9０-９]+丁目.*$', '', base_addr)
+    if addr != base_addr and len(addr) > 5 and addr not in candidates:
         candidates.append(addr)
     
     # 只保留到区/市/町/村
-    match = re.search(r'(.*?[都道府県][^市区町村]+[市区町村])', address)
+    match = re.search(r'(.*?[都道府県][^市区町村]+[市区町村])', base_addr)
     if match:
         addr = match.group(1)
         if addr not in candidates:
