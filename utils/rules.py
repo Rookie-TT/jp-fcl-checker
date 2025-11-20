@@ -12,8 +12,15 @@ def load_ports():
     with open(config_path, "r", encoding="utf-8") as f:
         return yaml.safe_load(f)["destination_ports"]
 
-# ← 加上这一行！全局 PORTS 变量（就算 can_access_fcl 不直接用，也防止导入崩溃）
-PORTS = load_ports()        # ← 这就是你缺失的救命稻草！
+def load_vehicles():
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    config_path = os.path.join(current_dir, "..", "config", "vehicles.yaml")
+    with open(config_path, "r", encoding="utf-8") as f:
+        return yaml.safe_load(f)["vehicles"]
+
+# 全局变量
+PORTS = load_ports()
+VEHICLES = load_vehicles()
 
 def is_restricted_area(parsed):
     """检查是否在限制区域（黑名单）。"""
@@ -22,13 +29,19 @@ def is_restricted_area(parsed):
     text = (parsed["city"] + parsed["town"] + parsed["rest"])
     return any(area in text for area in restricted)
 
-def can_access_fcl(roads, parsed):
+def can_access_fcl(roads, parsed, vehicle_type="40ft"):
     """
-    判断是否可收整箱（改进版：更智能的规则判断）
+    判断是否可收整箱（改进版：基于车辆类型的智能判断）
     :param roads: OSM 道路列表
     :param parsed: 解析后的地址
+    :param vehicle_type: 车辆类型（40ft, 20ft, 10t, 4t, 2t）
     :return: (bool, str) - (可达, 日文理由)
     """
+    # 获取车辆配置
+    vehicle_config = VEHICLES.get(vehicle_type, VEHICLES["40ft"])
+    min_width_required = vehicle_config["min_road_width"]
+    vehicle_name = vehicle_config["name"]
+    vehicle_width = vehicle_config["width"]
     full_address = parsed.get("full", "") + parsed.get("city", "") + parsed.get("town", "") + parsed.get("rest", "")
     
     # 白名单：已知工业/港口区（优先级最高）
@@ -80,12 +93,13 @@ def can_access_fcl(roads, parsed):
     max_width = max(widths)
     min_width = min(widths)
     
-    # FCL 需要至少 3.5m 宽度
-    if max_width >= 6.0:
-        return True, f"道路幅{max_width:.1f}m以上、40HQ対応可能"
-    elif max_width >= 3.5:
-        return True, f"道路幅{max_width:.1f}m、40HQ対応可能（要注意）"
+    # 根据车辆类型判断道路宽度
+    if max_width >= min_width_required:
+        if max_width >= min_width_required + 1.0:
+            return True, f"道路幅{max_width:.1f}m、{vehicle_name}（幅{vehicle_width}m）対応可能"
+        else:
+            return True, f"道路幅{max_width:.1f}m、{vehicle_name}対応可能（要注意）"
     else:
-        return False, f"最大道路幅{max_width:.1f}m、コンテナ車進入不可"
+        return False, f"最大道路幅{max_width:.1f}m、{vehicle_name}（最低{min_width_required}m必要）進入不可"
 
 
