@@ -1,20 +1,8 @@
 # requirements.txt - 专为你的 jp-fcl-checker 项目定制（Vercel 部署必备）
 Flask==3.0.3
-mangum==0.17.0
-# Jinja2==3.1.4
-pyyaml==6.0.2
+Jinja2==3.1.4
+PyYAML==6.0.2
 requests==2.32.3
-# gunicorn==22.0.0
-
-# 正确包名：日本地址 NLP 解析库
-#japanese-address-parser-py==0.2.10
-
-# utils 可能需要的额外（根据你的 py 文件）
-# 如果 geocoder 用 geopy 或 folium，加下面
-# geopy==2.4.1
-# folium==0.17.0
-# 如果 osm_roads 用 osmnx 或 similar，加
-# osmnx==1.9.7
 
 
 
