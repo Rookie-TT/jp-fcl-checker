@@ -187,7 +187,8 @@ def geocode(address: str):
     智能地理编码：优先 GSI，支持地址降级策略
     如果详细地址找不到，自动尝试简化版本
     :param address: 地址字符串（日文或英文）
-    :return: (lat, lng) 元组；若失败，返回 (None, None)
+    :return: (lat, lng, used_address) 元组；若失败，返回 (None, None, None)
+            used_address 是实际用于解析的地址
     """
     original_address = address
     
@@ -214,7 +215,7 @@ def geocode(address: str):
                     print(f"  ✓ 使用简化地址成功: {addr}")
                 else:
                     print(f"  ✓ 成功")
-                return lat, lng
+                return lat, lng, addr
             time.sleep(0.2)
     
     # 策略2: 尝试 Nominatim（原始地址）
@@ -222,7 +223,7 @@ def geocode(address: str):
     lat, lng = geocode_nominatim(original_address, country_code="jp", timeout=6)
     if lat and lng:
         print(f"  ✓ Nominatim 成功")
-        return lat, lng
+        return lat, lng, original_address
     
     # 策略3: Nominatim 全球搜索
     if is_japanese:
@@ -231,7 +232,7 @@ def geocode(address: str):
         lat, lng = geocode_nominatim(original_address + ", Japan", country_code=None, timeout=6)
         if lat and lng:
             print(f"  ✓ Nominatim 全球成功")
-            return lat, lng
+            return lat, lng, original_address
     
     print(f"  ✗ 所有尝试失败: {original_address}")
-    return None, None
+    return None, None, None
