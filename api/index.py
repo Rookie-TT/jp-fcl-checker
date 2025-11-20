@@ -68,6 +68,8 @@ def index():
 def check():
     """API：批量/单地址检查（返回日文 JSON）。"""
     addresses = request.json.get("addresses", [])  # 支持批量（list）
+    vehicle_type = request.json.get("vehicle_type", "40ft")  # 车辆类型，默认40ft
+    
     if isinstance(addresses, str):
         addresses = [addresses.strip()]  # 单地址转为 list
     
@@ -100,8 +102,8 @@ def check():
         # 3. 地图：OSM 道路
         roads = query_osm_roads(lat, lng)
         
-        # 4. 规则：可达性判断
-        can_access, reason = can_access_fcl(roads, parsed)
+        # 4. 规则：可达性判断（传入车辆类型）
+        can_access, reason = can_access_fcl(roads, parsed, vehicle_type)
         
         # 5. 最近港口
         port_info = get_nearest_port(lat, lng)
@@ -130,4 +132,10 @@ if __name__ == "__main__":
     print("访问地址: http://localhost:5000")
     print("=" * 50)
     app.run(debug=True, host="0.0.0.0", port=5000)
+
+
+
+
+
+
 
