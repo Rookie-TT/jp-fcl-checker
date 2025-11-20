@@ -89,7 +89,12 @@ def check():
         # 2. 地图：地理编码
         lat, lng = geocode(addr)
         if not lat:
-            results.append({"error": "座標解析不可"})
+            results.append({
+                "address": addr,
+                "can_access": False,
+                "reason": "座標解析不可、住所を確認してください",
+                "error": "座標解析不可"
+            })
             continue
         
         # 3. 地图：OSM 道路
@@ -124,3 +129,6 @@ if __name__ == "__main__":
     print("访问地址: http://localhost:5000")
     print("=" * 50)
     app.run(debug=True, host="0.0.0.0", port=5000)
+
+
+
