@@ -226,9 +226,18 @@
                                 output += `<p><strong>${r.address || '不明'}:</strong> ${r.error}</p>`;
                             } else {
                                 const status = r.can_access ? '到達可能' : '到達不可';
+
+                                // 地址显示：如果有标准化地址，显示原地址+标准化地址
+                                let addressDisplay = '';
+                                if (r.used_address && r.used_address !== r.address) {
+                                    addressDisplay = `<span style="color: #999; font-size: 0.85em;">${r.address}</span> <span style="color: #007bff; font-weight: bold; font-size: 1.05em;">（${r.used_address}）</span>`;
+                                } else {
+                                    addressDisplay = r.address;
+                                }
+
                                 output += `
                                     <div style="border-left: 3px solid ${r.can_access ? '#28a745' : '#dc3545'}; padding-left: 10px; margin: 10px 0;">
-                                        <p><strong>住所:</strong> ${r.address}</p>
+                                        <p><strong>住所:</strong> ${addressDisplay}</p>
                                         <p><strong>到達可能か:</strong> <span class="${r.can_access ? 'ok' : 'no'}">${status}</span></p>
                                         <p><strong>理由:</strong> ${r.reason}</p>
                                         <p><strong>最寄り港:</strong> ${r.nearest_port}</p>
