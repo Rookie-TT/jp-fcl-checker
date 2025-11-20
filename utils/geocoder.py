@@ -9,7 +9,7 @@ from utils.address_extractor import extract_address
 
 def geocode_gsi(address: str, timeout=8):
     """
-    地理编码：地址 → 经纬度。
+    地理编码：地址 → 经纬度（日本国土地理院 API）
     :param address: 日本地址字符串
     :param timeout: 超时时间（秒）
     :return: (lat, lng) 元组；若失败，返回 (None, None)
@@ -19,9 +19,19 @@ def geocode_gsi(address: str, timeout=8):
         resp = requests.get(url, params={"q": address}, timeout=timeout)
         resp.raise_for_status()
         data = resp.json()
-        if data and "features" in data and data["features"]:
+        
+        # GSI 返回的是列表，不是字典
+        if isinstance(data, list) and len(data) > 0:
+            # 列表格式
+            feature = data[0]
+            if "geometry" in feature and "coordinates" in feature["geometry"]:
+                coord = feature["geometry"]["coordinates"]
+                return float(coord[1]), float(coord[0])  # lat, lng
+        elif isinstance(data, dict) and "features" in data and data["features"]:
+            # 字典格式（旧版 API）
             coord = data["features"][0]["geometry"]["coordinates"]
             return float(coord[1]), float(coord[0])  # lat, lng
+        
         return None, None
     except requests.exceptions.Timeout:
         print(f"GSI 超时: {address}")
@@ -79,55 +89,53 @@ def geocode_nominatim(address: str, country_code="jp", timeout=8):
 
 def geocode(address: str):
     """
-    智能地理编码：先尝试 GSI，失败则使用 Nominatim，最后尝试提取地址部分
+    智能地理编码：优先 GSI（日本地址最准确），失败则尝试 Nominatim
     支持日文和英文地址
     :param address: 地址字符串（日文或英文）
     :return: (lat, lng) 元组；若失败，返回 (None, None)
     """
     original_address = address
     
-    # 检查是否为英文地址（简单判断：是否包含日文字符）
+    # 检查是否为日文地址
     is_japanese = any('\u3040' <= c <= '\u309F' or  # 平假名
                      '\u30A0' <= c <= '\u30FF' or  # 片假名
                      '\u4E00' <= c <= '\u9FFF'     # 汉字
                      for c in address)
     
-    # 如果是日文地址，先尝试 GSI
+    # 策略1: 日文地址优先使用 GSI（日本国土地理院，最准确）
     if is_japanese:
-        lat, lng = geocode_gsi(address)
+        print(f"[1/4] GSI: {address}")
+        lat, lng = geocode_gsi(address, timeout=8)
         if lat and lng:
+            print(f"  ✓ GSI 成功")
             return lat, lng
-        print(f"GSI 失败，尝试 Nominatim: {address}")
-    else:
-        print(f"检测到英文地址，使用 Nominatim: {address}")
     
-    # 使用 Nominatim（支持英文和日文）
-    time.sleep(1)  # Nominatim 要求请求间隔至少 1 秒
-    
-    # 先尝试限定日本
-    lat, lng = geocode_nominatim(address, country_code="jp")
+    # 策略2: 尝试 Nominatim
+    print(f"[2/4] Nominatim: {address}")
+    time.sleep(0.3)
+    lat, lng = geocode_nominatim(address, country_code="jp", timeout=8)
     if lat and lng:
+        print(f"  ✓ Nominatim 成功")
         return lat, lng
     
-    # 如果失败，尝试不限定国家（可能地址格式特殊）
-    print(f"限定日本失败，尝试全球搜索: {address}")
-    time.sleep(1)
-    lat, lng = geocode_nominatim(address + ", Japan", country_code=None)
-    if lat and lng:
-        return lat, lng
-    
-    # 最后尝试：提取地址部分（去除建筑物名称）
+    # 策略3: 提取简化地址重试 GSI
     if is_japanese:
         extracted = extract_address(original_address)
-        if extracted != original_address:
-            print(f"尝试提取的地址部分: {extracted}")
-            time.sleep(1)
-            lat, lng = geocode_gsi(extracted)
+        if extracted != original_address and len(extracted) > 3:
+            print(f"[3/4] GSI 简化地址: {extracted}")
+            time.sleep(0.3)
+            lat, lng = geocode_gsi(extracted, timeout=8)
             if lat and lng:
-                return lat, lng
-            time.sleep(1)
-            lat, lng = geocode_nominatim(extracted, country_code="jp")
-            if lat and lng:
+                print(f"  ✓ GSI 简化地址成功")
                 return lat, lng
     
+    # 策略4: Nominatim 全球搜索
+    print(f"[4/4] Nominatim 全球: {address}, Japan")
+    time.sleep(0.3)
+    lat, lng = geocode_nominatim(address + ", Japan", country_code=None, timeout=8)
+    if lat and lng:
+        print(f"  ✓ Nominatim 全球成功")
+        return lat, lng
+    
+    print(f"  ✗ 所有尝试失败: {address}")
     return None, None
