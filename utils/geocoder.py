@@ -7,15 +7,16 @@ import requests
 import time
 from utils.address_extractor import extract_address
 
-def geocode_gsi(address: str):
+def geocode_gsi(address: str, timeout=8):
     """
     地理编码：地址 → 经纬度。
     :param address: 日本地址字符串
+    :param timeout: 超时时间（秒）
     :return: (lat, lng) 元组；若失败，返回 (None, None)
     """
     url = "https://msearch.gsi.go.jp/address-search/AddressSearch"
     try:
-        resp = requests.get(url, params={"q": address}, timeout=10)
+        resp = requests.get(url, params={"q": address}, timeout=timeout)
         resp.raise_for_status()
         data = resp.json()
         if data and "features" in data and data["features"]:
@@ -23,25 +24,26 @@ def geocode_gsi(address: str):
             return float(coord[1]), float(coord[0])  # lat, lng
         return None, None
     except requests.exceptions.Timeout:
-        print(f"地理编码超时: {address}")
+        print(f"GSI 超时: {address}")
         return None, None
     except requests.exceptions.RequestException as e:
-        print(f"地理编码网络错误: {e}")
+        print(f"GSI 网络错误: {e}")
         return None, None
     except Exception as e:
-        print(f"地理编码错误: {e}")
+        print(f"GSI 错误: {e}")
         return None, None
 
-def geocode_nominatim(address: str, country_code="jp"):
+def geocode_nominatim(address: str, country_code="jp", timeout=8):
     """
     备用地理编码：使用 OpenStreetMap Nominatim API
     :param address: 地址字符串（支持日文或英文）
     :param country_code: 国家代码，默认 "jp"（日本）
+    :param timeout: 超时时间（秒）
     :return: (lat, lng) 元组；若失败，返回 (None, None)
     """
     url = "https://nominatim.openstreetmap.org/search"
     headers = {
-        "User-Agent": "FCL-Checker/1.0"
+        "User-Agent": "FCL-Checker/1.0 (https://github.com/your-repo)"
     }
     
     # 构建查询参数
@@ -57,20 +59,21 @@ def geocode_nominatim(address: str, country_code="jp"):
         params["countrycodes"] = country_code
     
     try:
-        resp = requests.get(url, params=params, headers=headers, timeout=10)
+        resp = requests.get(url, params=params, headers=headers, timeout=timeout)
         resp.raise_for_status()
         data = resp.json()
         if data and len(data) > 0:
             result = data[0]
-            # 验证结果是否在日本（如果指定了日本）
-            if country_code == "jp":
-                country = result.get("address", {}).get("country_code", "").upper()
-                if country and country != "JP":
-                    print(f"警告：地址不在日本境内: {address}")
             return float(result["lat"]), float(result["lon"])
         return None, None
+    except requests.exceptions.Timeout:
+        print(f"Nominatim 超时: {address}")
+        return None, None
+    except requests.exceptions.RequestException as e:
+        print(f"Nominatim 网络错误: {e}")
+        return None, None
     except Exception as e:
-        print(f"Nominatim 地理编码错误: {e}")
+        print(f"Nominatim 错误: {e}")
         return None, None
 
 
