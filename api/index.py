@@ -87,7 +87,7 @@ def check():
             pass
         
         # 2. 地图：地理编码
-        lat, lng = geocode(addr)
+        lat, lng, used_address = geocode(addr)
         if not lat:
             results.append({
                 "address": addr,
@@ -108,6 +108,7 @@ def check():
         
         results.append({
             "address": addr,
+            "used_address": used_address if used_address != addr else None,  # 实际使用的地址
             "can_access": can_access,
             "reason": reason,  # 日文理由
             "nearest_port": f"{port_info['name']}（{port_info['code']}）",
@@ -129,6 +130,4 @@ if __name__ == "__main__":
     print("访问地址: http://localhost:5000")
     print("=" * 50)
     app.run(debug=True, host="0.0.0.0", port=5000)
-
-
 
