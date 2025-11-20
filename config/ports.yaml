@@ -177,41 +177,41 @@ destination_ports:
     type: "local"
     region: "関西"
   
-  # 中国
+  # 中国地方
   - name: "境港"
     code: "JPSKA"
     lat: 35.5333
     lng: 133.2333
     type: "local"
-    region: "中国"
+    region: "中国地方"
   
   - name: "広島港"
     code: "JPHIJ"
     lat: 34.3667
     lng: 132.4500
     type: "local"
-    region: "中国"
+    region: "中国地方"
   
   - name: "水島港"
     code: "JPMIZ"
     lat: 34.5000
     lng: 133.7667
     type: "local"
-    region: "中国"
+    region: "中国地方"
   
   - name: "玉島港"
     code: "JPTAM"
     lat: 34.5167
     lng: 133.7167
     type: "local"
-    region: "中国"
+    region: "中国地方"
   
   - name: "宇野港"
     code: "JPUNO"
     lat: 34.5167
     lng: 133.9333
     type: "local"
-    region: "中国"
+    region: "中国地方"
   
   # 四国
   - name: "高松港"
