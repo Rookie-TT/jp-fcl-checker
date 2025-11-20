@@ -182,6 +182,55 @@ def simplify_address(address: str):
     return candidates
 
 
+def simplify_english_address(address: str):
+    """
+    简化英文日本地址
+    例如：7F, KR GinzaⅡ, 2-15-2, Ginza, Chuo-Ku, Tokyo, 104-0061, Japan
+    返回：["Ginza, Chuo-Ku, Tokyo, Japan", "Chuo-Ku, Tokyo, Japan", "Tokyo, Japan"]
+    """
+    import re
+    
+    candidates = [address]
+    
+    # 移除楼层信息（7F, 8th Floor等）
+    addr = re.sub(r'\b\d+F\b|\b\d+(st|nd|rd|th)\s+Floor\b', '', address, flags=re.IGNORECASE)
+    addr = re.sub(r'\s+,\s+', ', ', addr).strip(', ')
+    if addr != address and addr not in candidates:
+        candidates.append(addr)
+    
+    # 移除建筑物名称（在第一个逗号之前的内容）
+    parts = address.split(',')
+    if len(parts) > 2:
+        # 尝试从第二部分开始
+        addr = ', '.join(parts[1:]).strip()
+        if addr not in candidates:
+            candidates.append(addr)
+        
+        # 尝试从第三部分开始（跳过街道号码）
+        if len(parts) > 3:
+            addr = ', '.join(parts[2:]).strip()
+            if addr not in candidates:
+                candidates.append(addr)
+    
+    # 提取主要地名（Ginza, Chuo-Ku, Tokyo等）
+    # 查找包含 Tokyo, Osaka, Kyoto 等城市名的部分
+    major_cities = ['Tokyo', 'Osaka', 'Kyoto', 'Yokohama', 'Nagoya', 'Kobe', 'Fukuoka', 'Sapporo']
+    for city in major_cities:
+        if city in address:
+            # 找到城市名后的所有内容
+            idx = address.find(city)
+            addr = address[idx:].strip()
+            if addr not in candidates:
+                candidates.append(addr)
+            
+            # 只保留城市名 + Japan
+            addr = f"{city}, Japan"
+            if addr not in candidates:
+                candidates.append(addr)
+    
+    return candidates
+
+
 def geocode(address: str):
     """
     智能地理编码：优先 GSI，支持地址降级策略
@@ -201,11 +250,12 @@ def geocode(address: str):
     # 生成地址候选列表（从详细到简略）
     if is_japanese:
         address_candidates = simplify_address(address)
-        print(f"地址候选: {len(address_candidates)} 个")
+        print(f"日文地址候选: {len(address_candidates)} 个")
     else:
-        address_candidates = [address]
+        address_candidates = simplify_english_address(address)
+        print(f"英文地址候选: {len(address_candidates)} 个")
     
-    # 策略1: 逐级尝试 GSI（日本国土地理院）
+    # 策略1: 逐级尝试 GSI（日本国土地理院，仅日文）
     if is_japanese:
         for i, addr in enumerate(address_candidates, 1):
             print(f"[GSI {i}/{len(address_candidates)}] {addr}")
@@ -218,21 +268,24 @@ def geocode(address: str):
                 return lat, lng, addr
             time.sleep(0.2)
     
-    # 策略2: 尝试 Nominatim（原始地址）
-    print(f"[Nominatim] {original_address}")
-    lat, lng = geocode_nominatim(original_address, country_code="jp", timeout=6)
-    if lat and lng:
-        print(f"  ✓ Nominatim 成功")
-        return lat, lng, original_address
-    
-    # 策略3: Nominatim 全球搜索
-    if is_japanese:
-        print(f"[Nominatim 全球] {original_address}, Japan")
-        time.sleep(0.3)
-        lat, lng = geocode_nominatim(original_address + ", Japan", country_code=None, timeout=6)
+    # 策略2: 逐级尝试 Nominatim（所有候选地址）
+    for i, addr in enumerate(address_candidates, 1):
+        print(f"[Nominatim {i}/{len(address_candidates)}] {addr}")
+        lat, lng = geocode_nominatim(addr, country_code="jp", timeout=6)
         if lat and lng:
-            print(f"  ✓ Nominatim 全球成功")
-            return lat, lng, original_address
+            if addr != original_address:
+                print(f"  ✓ 使用简化地址成功: {addr}")
+            else:
+                print(f"  ✓ 成功")
+            return lat, lng, addr
+        time.sleep(0.3)
+    
+    # 策略3: Nominatim 全球搜索（最后尝试）
+    print(f"[Nominatim 全球] {original_address}")
+    lat, lng = geocode_nominatim(original_address, country_code=None, timeout=6)
+    if lat and lng:
+        print(f"  ✓ Nominatim 全球成功")
+        return lat, lng, original_address
     
     print(f"  ✗ 所有尝试失败: {original_address}")
     return None, None, None
