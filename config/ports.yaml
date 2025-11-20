@@ -1,42 +1,301 @@
-# 配置说明：日本主要港口清单（基于官方经纬度数据）
+# 日本集装箱港口配置
 # - name: 港口名称（日文）
 # - code: UN/LOCODE 港口代码
-# - lat/lng: 经纬度（来源：国土地理院 + 港口官网）
-# 可随时添加/删除港口，重启服务生效
+# - lat/lng: 经纬度
+# - type: main（主要港口）/ local（地方港口）
+# - region: 地区
 
 destination_ports:
-  - name: "横滨港"  # Yokohama Port
-    code: "JPYOK"
-    lat: 35.4518
-    lng: 139.6857
-    region: "関東"
-  - name: "東京港"  # Tokyo Port (更新：35.7167 N, 139.7667 E)
+  # ========== 主要集装箱港口 (Main Ports) ==========
+  
+  - name: "東京港"
     code: "JPTYO"
-    lat: 35.7167
-    lng: 139.7667
+    lat: 35.6329
+    lng: 139.7677
+    type: "main"
     region: "関東"
-  - name: "大阪港"  # Osaka Port
-    code: "JPOSA"
-    lat: 34.6667
-    lng: 135.4167
-    region: "関西"
-  - name: "神戸港"  # Kobe Port
-    code: "JPUKB"
-    lat: 34.6833
-    lng: 135.2167
-    region: "関西"
-  - name: "名古屋港"  # Nagoya Port
+  
+  - name: "横浜港"
+    code: "JPYOK"
+    lat: 35.4437
+    lng: 139.6380
+    type: "main"
+    region: "関東"
+  
+  - name: "名古屋港"
     code: "JPNGO"
     lat: 35.0833
     lng: 136.8833
+    type: "main"
     region: "中部"
-  - name: "博多港"  # Hakata Port (Fukuoka)
+  
+  - name: "大阪港"
+    code: "JPOSA"
+    lat: 34.6537
+    lng: 135.4300
+    type: "main"
+    region: "関西"
+  
+  - name: "神戸港"
+    code: "JPUKB"
+    lat: 34.6833
+    lng: 135.1833
+    type: "main"
+    region: "関西"
+  
+  - name: "博多港"
     code: "JPHKT"
     lat: 33.6167
     lng: 130.4000
+    type: "main"
     region: "九州"
-  - name: "広島港"  # Hiroshima Port (新增：34.4 N, 132.4667 E)
-    code: "JPHIJ"
-    lat: 34.4000
-    lng: 132.4667
+  
+  - name: "門司港"
+    code: "JPMOJ"
+    lat: 33.9400
+    lng: 130.9600
+    type: "main"
+    region: "九州"
+  
+  # ========== 地方港口 (Local Ports) ==========
+  
+  # 北海道
+  - name: "苫小牧港"
+    code: "JPTOM"
+    lat: 42.6333
+    lng: 141.6000
+    type: "local"
+    region: "北海道"
+  
+  - name: "室蘭港"
+    code: "JPMUR"
+    lat: 42.3167
+    lng: 140.9667
+    type: "local"
+    region: "北海道"
+  
+  - name: "釧路港"
+    code: "JPKUH"
+    lat: 42.9833
+    lng: 144.3833
+    type: "local"
+    region: "北海道"
+  
+  - name: "函館港"
+    code: "JPHKD"
+    lat: 41.7833
+    lng: 140.7333
+    type: "local"
+    region: "北海道"
+  
+  # 東北
+  - name: "仙台塩釜港"
+    code: "JPSND"
+    lat: 38.3167
+    lng: 141.0333
+    type: "local"
+    region: "東北"
+  
+  - name: "秋田港"
+    code: "JPAKT"
+    lat: 39.7667
+    lng: 140.0667
+    type: "local"
+    region: "東北"
+  
+  - name: "酒田港"
+    code: "JPSKA"
+    lat: 38.9167
+    lng: 139.8333
+    type: "local"
+    region: "東北"
+  
+  # 北陸・信越
+  - name: "新潟港"
+    code: "JPNIG"
+    lat: 37.9167
+    lng: 139.0333
+    type: "local"
+    region: "北陸"
+  
+  - name: "富山港"
+    code: "JPTOY"
+    lat: 36.7667
+    lng: 137.2333
+    type: "local"
+    region: "北陸"
+  
+  - name: "金沢港"
+    code: "JPKNZ"
+    lat: 36.6333
+    lng: 136.6167
+    type: "local"
+    region: "北陸"
+  
+  - name: "敦賀港"
+    code: "JPTSU"
+    lat: 35.6500
+    lng: 136.0667
+    type: "local"
+    region: "北陸"
+  
+  # 関東
+  - name: "千葉港"
+    code: "JPCHB"
+    lat: 35.6000
+    lng: 140.1000
+    type: "local"
+    region: "関東"
+  
+  - name: "常陸那珂港"
+    code: "JPHTN"
+    lat: 36.4167
+    lng: 140.6167
+    type: "local"
+    region: "関東"
+  
+  # 中部
+  - name: "清水港"
+    code: "JPSMZ"
+    lat: 35.0167
+    lng: 138.5167
+    type: "local"
+    region: "中部"
+  
+  - name: "四日市港"
+    code: "JPYKK"
+    lat: 34.9667
+    lng: 136.6333
+    type: "local"
+    region: "中部"
+  
+  # 関西
+  - name: "舞鶴港"
+    code: "JPMIZ"
+    lat: 35.4667
+    lng: 135.3833
+    type: "local"
+    region: "関西"
+  
+  # 中国
+  - name: "境港"
+    code: "JPSKA"
+    lat: 35.5333
+    lng: 133.2333
+    type: "local"
     region: "中国"
+  
+  - name: "広島港"
+    code: "JPHIJ"
+    lat: 34.3667
+    lng: 132.4500
+    type: "local"
+    region: "中国"
+  
+  - name: "水島港"
+    code: "JPMIZ"
+    lat: 34.5000
+    lng: 133.7667
+    type: "local"
+    region: "中国"
+  
+  - name: "玉島港"
+    code: "JPTAM"
+    lat: 34.5167
+    lng: 133.7167
+    type: "local"
+    region: "中国"
+  
+  - name: "宇野港"
+    code: "JPUNO"
+    lat: 34.5167
+    lng: 133.9333
+    type: "local"
+    region: "中国"
+  
+  # 四国
+  - name: "高松港"
+    code: "JPTKA"
+    lat: 34.3500
+    lng: 134.0500
+    type: "local"
+    region: "四国"
+  
+  - name: "徳島港"
+    code: "JPTKS"
+    lat: 34.0667
+    lng: 134.5667
+    type: "local"
+    region: "四国"
+  
+  - name: "松山港"
+    code: "JPMYJ"
+    lat: 33.8333
+    lng: 132.7167
+    type: "local"
+    region: "四国"
+  
+  - name: "高知港"
+    code: "JPKCH"
+    lat: 33.5333
+    lng: 133.5667
+    type: "local"
+    region: "四国"
+  
+  # 九州
+  - name: "北九州港"
+    code: "JPKIT"
+    lat: 33.9167
+    lng: 130.8667
+    type: "local"
+    region: "九州"
+  
+  - name: "ひびき港"
+    code: "JPHIB"
+    lat: 33.9000
+    lng: 130.8000
+    type: "local"
+    region: "九州"
+  
+  - name: "長崎港"
+    code: "JPNGS"
+    lat: 32.7333
+    lng: 129.8667
+    type: "local"
+    region: "九州"
+  
+  - name: "佐世保港"
+    code: "JPSAS"
+    lat: 33.1667
+    lng: 129.7167
+    type: "local"
+    region: "九州"
+  
+  - name: "大分港"
+    code: "JPOIM"
+    lat: 33.2667
+    lng: 131.6167
+    type: "local"
+    region: "九州"
+  
+  - name: "志布志港"
+    code: "JPSHB"
+    lat: 31.4833
+    lng: 131.0500
+    type: "local"
+    region: "九州"
+  
+  - name: "鹿児島港"
+    code: "JPKOJ"
+    lat: 31.5833
+    lng: 130.5500
+    type: "local"
+    region: "九州"
+  
+  # 沖縄
+  - name: "那覇港"
+    code: "JPNAH"
+    lat: 26.2167
+    lng: 127.6667
+    type: "local"
+    region: "沖縄"
