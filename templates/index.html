@@ -9,12 +9,60 @@
         .container { max-width: 800px; margin: auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
         h1 { color: #333; text-align: center; }
         textarea { width: 100%; height: 120px; padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 16px; }
-        button { width: 100%; padding: 12px; background: #007bff; color: white; border: none; border-radius: 4px; font-size: 16px; cursor: pointer; }
+        button { width: 100%; padding: 12px; background: #007bff; color: white; border: none; border-radius: 4px; font-size: 16px; cursor: pointer; transition: background 0.3s; }
         button:hover { background: #0056b3; }
+        button:disabled { background: #6c757d; cursor: not-allowed; }
         .result { margin-top: 20px; padding: 15px; border: 1px solid #ddd; border-radius: 4px; background: #f9f9f9; }
         .ok { color: #28a745; font-weight: bold; }
         .no { color: #dc3545; font-weight: bold; }
         .batch-note { font-size: 14px; color: #666; margin-top: 5px; }
+        
+        /* 进度条样式 */
+        .progress-container { 
+            display: none; 
+            margin-top: 15px; 
+            background: #e9ecef; 
+            border-radius: 4px; 
+            overflow: hidden; 
+            height: 30px; 
+            position: relative;
+        }
+        .progress-bar { 
+            height: 100%; 
+            background: linear-gradient(90deg, #007bff, #0056b3); 
+            transition: width 0.3s ease; 
+            display: flex; 
+            align-items: center; 
+            justify-content: center; 
+            color: white; 
+            font-weight: bold; 
+            font-size: 14px;
+            min-width: 30px;
+        }
+        .progress-text {
+            position: absolute;
+            width: 100%;
+            text-align: center;
+            line-height: 30px;
+            color: #333;
+            font-weight: bold;
+            font-size: 14px;
+            z-index: 1;
+        }
+        .loading-spinner {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 3px solid rgba(255,255,255,.3);
+            border-radius: 50%;
+            border-top-color: #fff;
+            animation: spin 1s ease-in-out infinite;
+            margin-right: 8px;
+            vertical-align: middle;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
     </style>
 </head>
 <body>
@@ -24,7 +72,13 @@
         
         <textarea id="addresses" placeholder="例:&#10;神奈川県横浜市鶴見区大黒ふ頭1-2-3&#10;京都府京都市東山区祇園町南側579"></textarea>
         <div class="batch-note">※ 複数住所を改行で入力可能（バッチ処理）。</div>
-        <button onclick="checkAddresses()">チェック実行</button>
+        <button id="checkBtn" onclick="checkAddresses()">チェック実行</button>
+        
+        <!-- 进度条 -->
+        <div id="progressContainer" class="progress-container">
+            <div class="progress-text" id="progressText">処理中... 0%</div>
+            <div class="progress-bar" id="progressBar"></div>
+        </div>
         
         <div id="result" class="result" style="display: none;"></div>
     </div>
@@ -37,36 +91,93 @@
                 return;
             }
 
-            const res = await fetch('/check', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ addresses: addresses })
-            });
-            const data = await res.json();
-            const el = document.getElementById('result');
-            if (data.error) {
-                el.innerHTML = `<p style="color: red;">エラー: ${data.error}</p>`;
-            } else {
-                let output = '<h3>結果:</h3>';
-                data.results.forEach(r => {
-                    if (r.error) {
-                        output += `<p><strong>${r.address || '不明'}:</strong> ${r.error}</p>`;
-                    } else {
-                        const status = r.can_access ? '到達可能' : '到達不可';
-                        output += `
-                            <div style="border-left: 3px solid ${r.can_access ? '#28a745' : '#dc3545'}; padding-left: 10px; margin: 10px 0;">
-                                <p><strong>住所:</strong> ${r.address}</p>
-                                <p><strong>到達可能か:</strong> <span class="${r.can_access ? 'ok' : 'no'}">${status}</span></p>
-                                <p><strong>理由:</strong> ${r.reason}</p>
-                                <p><strong>最寄り港:</strong> ${r.nearest_port}</p>
-                                <p><strong>距離:</strong> ${r.distance}、${r.estimated_time}</p>
-                            </div>
-                        `;
-                    }
+            // 获取元素
+            const checkBtn = document.getElementById('checkBtn');
+            const progressContainer = document.getElementById('progressContainer');
+            const progressBar = document.getElementById('progressBar');
+            const progressText = document.getElementById('progressText');
+            const resultEl = document.getElementById('result');
+
+            // 禁用按钮，显示进度条
+            checkBtn.disabled = true;
+            checkBtn.innerHTML = '<span class="loading-spinner"></span>処理中...';
+            progressContainer.style.display = 'block';
+            resultEl.style.display = 'none';
+
+            // 初始化进度
+            let progress = 0;
+            progressBar.style.width = '0%';
+            progressText.textContent = '処理中... 0%';
+
+            // 模拟进度更新（因为后端是一次性返回，我们模拟进度）
+            const progressInterval = setInterval(() => {
+                if (progress < 90) {
+                    progress += Math.random() * 15;
+                    if (progress > 90) progress = 90;
+                    progressBar.style.width = progress + '%';
+                    progressText.textContent = `処理中... ${Math.round(progress)}%`;
+                }
+            }, 300);
+
+            try {
+                // 发送请求
+                const res = await fetch('/check', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ addresses: addresses })
                 });
-                el.innerHTML = output;
+                
+                const data = await res.json();
+
+                // 完成进度
+                clearInterval(progressInterval);
+                progress = 100;
+                progressBar.style.width = '100%';
+                progressText.textContent = '完了！ 100%';
+
+                // 延迟一下显示结果
+                setTimeout(() => {
+                    progressContainer.style.display = 'none';
+                    
+                    // 显示结果
+                    if (data.error) {
+                        resultEl.innerHTML = `<p style="color: red;">エラー: ${data.error}</p>`;
+                    } else {
+                        let output = '<h3>結果:</h3>';
+                        data.results.forEach(r => {
+                            if (r.error) {
+                                output += `<p><strong>${r.address || '不明'}:</strong> ${r.error}</p>`;
+                            } else {
+                                const status = r.can_access ? '到達可能' : '到達不可';
+                                output += `
+                                    <div style="border-left: 3px solid ${r.can_access ? '#28a745' : '#dc3545'}; padding-left: 10px; margin: 10px 0;">
+                                        <p><strong>住所:</strong> ${r.address}</p>
+                                        <p><strong>到達可能か:</strong> <span class="${r.can_access ? 'ok' : 'no'}">${status}</span></p>
+                                        <p><strong>理由:</strong> ${r.reason}</p>
+                                        <p><strong>最寄り港:</strong> ${r.nearest_port}</p>
+                                        <p><strong>距離:</strong> ${r.distance}、${r.estimated_time}</p>
+                                    </div>
+                                `;
+                            }
+                        });
+                        resultEl.innerHTML = output;
+                    }
+                    resultEl.style.display = 'block';
+
+                    // 恢复按钮
+                    checkBtn.disabled = false;
+                    checkBtn.innerHTML = 'チェック実行';
+                }, 500);
+
+            } catch (error) {
+                // 错误处理
+                clearInterval(progressInterval);
+                progressContainer.style.display = 'none';
+                resultEl.innerHTML = `<p style="color: red;">エラー: ${error.message}</p>`;
+                resultEl.style.display = 'block';
+                checkBtn.disabled = false;
+                checkBtn.innerHTML = 'チェック実行';
             }
-            el.style.display = 'block';
         }
     </script>
 </body>
