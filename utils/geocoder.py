@@ -44,17 +44,129 @@ def geocode_gsi(address: str, timeout=8):
         print(f"GSI 错误: {e}")
         return None, None
 
+def reverse_geocode_nominatim(lat: float, lng: float, timeout=8):
+    """
+    反向地理编码：经纬度 → 日文地址
+    :param lat: 纬度
+    :param lng: 经度
+    :param timeout: 超时时间（秒）
+    :return: 日文地址字符串；若失败，返回 None
+    """
+    url = "https://nominatim.openstreetmap.org/reverse"
+    headers = {
+        "User-Agent": "FCL-Checker/1.0 (https://github.com/your-repo)",
+        "Accept-Language": "ja"  # 只要日文
+    }
+    
+    params = {
+        "lat": lat,
+        "lon": lng,
+        "format": "json",
+        "addressdetails": 1,
+        "zoom": 18  # 详细级别
+    }
+    
+    try:
+        resp = requests.get(url, params=params, headers=headers, timeout=timeout)
+        resp.raise_for_status()
+        result = resp.json()
+        
+        if "address" in result:
+            addr_parts = result["address"]
+            parts = []
+            
+            # 调试：打印所有可用的地址组件
+            print(f"  反向地理编码组件: {list(addr_parts.keys())}")
+            
+            # 都道府县（多种可能的字段名）
+            prefecture = None
+            for key in ["state", "province", "region", "ISO3166-2-lvl4"]:
+                if key in addr_parts:
+                    prefecture = addr_parts[key]
+                    break
+            
+            # 如果都道府县是英文或ISO代码，转换为日文
+            if prefecture:
+                # ISO 3166-2 代码映射（47个都道府县）
+                iso_map = {
+                    "JP-01": "北海道", "JP-02": "青森県", "JP-03": "岩手県", "JP-04": "宮城県",
+                    "JP-05": "秋田県", "JP-06": "山形県", "JP-07": "福島県", "JP-08": "茨城県",
+                    "JP-09": "栃木県", "JP-10": "群馬県", "JP-11": "埼玉県", "JP-12": "千葉県",
+                    "JP-13": "東京都", "JP-14": "神奈川県", "JP-15": "新潟県", "JP-16": "富山県",
+                    "JP-17": "石川県", "JP-18": "福井県", "JP-19": "山梨県", "JP-20": "長野県",
+                    "JP-21": "岐阜県", "JP-22": "静岡県", "JP-23": "愛知県", "JP-24": "三重県",
+                    "JP-25": "滋賀県", "JP-26": "京都府", "JP-27": "大阪府", "JP-28": "兵庫県",
+                    "JP-29": "奈良県", "JP-30": "和歌山県", "JP-31": "鳥取県", "JP-32": "島根県",
+                    "JP-33": "岡山県", "JP-34": "広島県", "JP-35": "山口県", "JP-36": "徳島県",
+                    "JP-37": "香川県", "JP-38": "愛媛県", "JP-39": "高知県", "JP-40": "福岡県",
+                    "JP-41": "佐賀県", "JP-42": "長崎県", "JP-43": "熊本県", "JP-44": "大分県",
+                    "JP-45": "宮崎県", "JP-46": "鹿児島県", "JP-47": "沖縄県"
+                }
+                
+                # 英文名称映射
+                name_map = {
+                    "Tokyo": "東京都", "Osaka": "大阪府", "Kyoto": "京都府",
+                    "Hokkaido": "北海道", "Kanagawa": "神奈川県", "Chiba": "千葉県",
+                    "Saitama": "埼玉県", "Aichi": "愛知県", "Hyogo": "兵庫県",
+                    "Fukuoka": "福岡県", "Miyagi": "宮城県", "Hiroshima": "広島県"
+                }
+                
+                # 先尝试 ISO 代码，再尝试英文名称
+                prefecture = iso_map.get(prefecture, name_map.get(prefecture, prefecture))
+                parts.append(prefecture)
+            
+            # 市区町村
+            if "city" in addr_parts:
+                parts.append(addr_parts["city"])
+            elif "town" in addr_parts:
+                parts.append(addr_parts["town"])
+            elif "village" in addr_parts:
+                parts.append(addr_parts["village"])
+            
+            # 区
+            if "city_district" in addr_parts:
+                parts.append(addr_parts["city_district"])
+            elif "suburb" in addr_parts:
+                parts.append(addr_parts["suburb"])
+            
+            # 町丁目
+            if "neighbourhood" in addr_parts:
+                parts.append(addr_parts["neighbourhood"])
+            elif "quarter" in addr_parts:
+                parts.append(addr_parts["quarter"])
+            
+            # 街道
+            if "road" in addr_parts:
+                parts.append(addr_parts["road"])
+            
+            # 门牌号
+            if "house_number" in addr_parts:
+                parts.append(addr_parts["house_number"])
+            
+            if parts:
+                japanese_addr = "".join(parts)
+                print(f"  反向地理编码结果: {japanese_addr}")
+                return japanese_addr
+        
+        # 如果没有提取到，使用 display_name
+        return result.get("display_name", None)
+    except Exception as e:
+        print(f"反向地理编码错误: {e}")
+        return None
+
+
 def geocode_nominatim(address: str, country_code="jp", timeout=8):
     """
     备用地理编码：使用 OpenStreetMap Nominatim API
     :param address: 地址字符串（支持日文或英文）
     :param country_code: 国家代码，默认 "jp"（日本）
     :param timeout: 超时时间（秒）
-    :return: (lat, lng) 元组；若失败，返回 (None, None)
+    :return: (lat, lng, japanese_address) 元组；若失败，返回 (None, None, None)
     """
     url = "https://nominatim.openstreetmap.org/search"
     headers = {
-        "User-Agent": "FCL-Checker/1.0 (https://github.com/your-repo)"
+        "User-Agent": "FCL-Checker/1.0 (https://github.com/your-repo)",
+        "Accept-Language": "ja,en"  # 优先返回日文
     }
     
     # 构建查询参数
@@ -75,17 +187,73 @@ def geocode_nominatim(address: str, country_code="jp", timeout=8):
         data = resp.json()
         if data and len(data) > 0:
             result = data[0]
-            return float(result["lat"]), float(result["lon"])
-        return None, None
+            lat = float(result["lat"])
+            lng = float(result["lon"])
+            
+            # 尝试提取日文地址
+            japanese_address = None
+            if "address" in result:
+                addr_parts = result["address"]
+                # 构建日文地址（从大到小）
+                parts = []
+                
+                # 都道府县
+                if "state" in addr_parts:
+                    parts.append(addr_parts["state"])
+                
+                # 市区町村
+                if "city" in addr_parts:
+                    parts.append(addr_parts["city"])
+                elif "town" in addr_parts:
+                    parts.append(addr_parts["town"])
+                elif "village" in addr_parts:
+                    parts.append(addr_parts["village"])
+                
+                # 区
+                if "city_district" in addr_parts:
+                    parts.append(addr_parts["city_district"])
+                elif "suburb" in addr_parts:
+                    parts.append(addr_parts["suburb"])
+                
+                # 町丁目
+                if "neighbourhood" in addr_parts:
+                    parts.append(addr_parts["neighbourhood"])
+                elif "quarter" in addr_parts:
+                    parts.append(addr_parts["quarter"])
+                
+                # 街道
+                if "road" in addr_parts:
+                    parts.append(addr_parts["road"])
+                
+                # 门牌号
+                if "house_number" in addr_parts:
+                    parts.append(addr_parts["house_number"])
+                
+                if parts:
+                    japanese_address = "".join(parts)
+            
+            # 如果地址不完整（少于3个组件），尝试反向地理编码获取更完整的地址
+            if not japanese_address or len(japanese_address) < 10:
+                print(f"  地址不完整，尝试反向地理编码...")
+                reverse_addr = reverse_geocode_nominatim(lat, lng, timeout=timeout)
+                if reverse_addr:
+                    japanese_address = reverse_addr
+            
+            # 如果还是没有，使用 display_name
+            if not japanese_address:
+                japanese_address = result.get("display_name", None)
+            
+            return lat, lng, japanese_address
+        return None, None, None
     except requests.exceptions.Timeout:
         print(f"Nominatim 超时: {address}")
-        return None, None
+        return None, None, None
     except requests.exceptions.RequestException as e:
         print(f"Nominatim 网络错误: {e}")
-        return None, None
+        return None, None, None
     except Exception as e:
         print(f"Nominatim 错误: {e}")
-        return None, None
+        return None, None, None
 
 
 def normalize_address(address: str):
@@ -237,7 +405,7 @@ def geocode(address: str):
     如果详细地址找不到，自动尝试简化版本
     :param address: 地址字符串（日文或英文）
     :return: (lat, lng, used_address) 元组；若失败，返回 (None, None, None)
-            used_address 是实际用于解析的地址
+            used_address 是实际用于解析的地址（英文输入时返回日文地址）
     """
     original_address = address
     
@@ -271,21 +439,25 @@ def geocode(address: str):
     # 策略2: 逐级尝试 Nominatim（所有候选地址）
     for i, addr in enumerate(address_candidates, 1):
         print(f"[Nominatim {i}/{len(address_candidates)}] {addr}")
-        lat, lng = geocode_nominatim(addr, country_code="jp", timeout=6)
+        lat, lng, japanese_addr = geocode_nominatim(addr, country_code="jp", timeout=6)
         if lat and lng:
+            # 如果输入是英文，返回日文地址；如果输入是日文，返回简化后的地址
+            used_address = japanese_addr if (japanese_addr and not is_japanese) else addr
             if addr != original_address:
                 print(f"  ✓ 使用简化地址成功: {addr}")
             else:
                 print(f"  ✓ 成功")
-            return lat, lng, addr
+            return lat, lng, used_address
         time.sleep(0.3)
     
     # 策略3: Nominatim 全球搜索（最后尝试）
     print(f"[Nominatim 全球] {original_address}")
-    lat, lng = geocode_nominatim(original_address, country_code=None, timeout=6)
+    lat, lng, japanese_addr = geocode_nominatim(original_address, country_code=None, timeout=6)
     if lat and lng:
         print(f"  ✓ Nominatim 全球成功")
-        return lat, lng, original_address
+        # 如果输入是英文且获取到日文地址，返回日文地址
+        used_address = japanese_addr if (japanese_addr and not is_japanese) else original_address
+        return lat, lng, used_address
     
     print(f"  ✗ 所有尝试失败: {original_address}")
     return None, None, None

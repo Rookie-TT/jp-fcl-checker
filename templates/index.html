@@ -5,6 +5,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>日本住所 FCL 到達性チェックツール</title>
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
         body {
             font-family: 'Hiragino Sans', sans-serif;
@@ -139,6 +141,52 @@
                 transform: rotate(360deg);
             }
         }
+
+        /* 地图样式 */
+        .map-container {
+            margin-top: 20px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            overflow: hidden;
+            display: none;
+        }
+
+        #map {
+            height: 400px;
+            width: 100%;
+        }
+
+        .map-controls {
+            background: white;
+            padding: 10px;
+            border-bottom: 1px solid #ddd;
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .map-btn {
+            padding: 8px 16px;
+            background: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background 0.3s;
+        }
+
+        .map-btn:hover {
+            background: #0056b3;
+        }
+
+        .map-btn.secondary {
+            background: #6c757d;
+        }
+
+        .map-btn.secondary:hover {
+            background: #5a6268;
+        }
     </style>
 </head>
 
@@ -173,7 +221,59 @@
         <div id="result" class="result" style="display: none;"></div>
     </div>
 
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
+        let maps = {}; // 存储所有地图实例
+
+        function initMap(mapId, lat, lng, address) {
+            // 延迟初始化，确保 DOM 已渲染
+            setTimeout(() => {
+                const mapDiv = document.getElementById(mapId);
+                if (!mapDiv) return;
+                
+                // 创建地图
+                const map = L.map(mapId).setView([lat, lng], 16);
+                
+                // 添加 OpenStreetMap 图层
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    attribution: '© OpenStreetMap contributors',
+                    maxZoom: 19
+                }).addTo(map);
+                
+                // 添加标记
+                L.marker([lat, lng]).addTo(map)
+                    .bindPopup(`<b>${address}</b><br>緯度: ${lat.toFixed(6)}<br>経度: ${lng.toFixed(6)}`)
+                    .openPopup();
+                
+                // 保存地图实例
+                maps[mapId] = map;
+            }, 100);
+        }
+
+        function toggleFullscreen(mapId) {
+            const mapDiv = document.getElementById(mapId);
+            if (!document.fullscreenElement) {
+                mapDiv.requestFullscreen().then(() => {
+                    setTimeout(() => {
+                        if (maps[mapId]) maps[mapId].invalidateSize();
+                    }, 100);
+                });
+            } else {
+                document.exitFullscreen();
+            }
+        }
+
+        function openStreetView(lat, lng) {
+            const url = `https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${lat},${lng}`;
+            window.open(url, '_blank');
+        }
+
+        function openGoogleMaps(lat, lng) {
+            const url = `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`;
+            window.open(url, '_blank');
+        }
+
         async function checkAddresses() {
             const addresses = document.getElementById('addresses').value.trim().split('\n').filter(a => a.trim());
             const vehicleType = document.getElementById('vehicleType').value;
@@ -239,11 +339,13 @@
                         resultEl.innerHTML = `<p style="color: red;">エラー: ${data.error}</p>`;
                     } else {
                         let output = '<h3>結果:</h3>';
-                        data.results.forEach(r => {
+                        
+                        data.results.forEach((r, index) => {
                             if (r.error) {
                                 output += `<p><strong>${r.address || '不明'}:</strong> ${r.error}</p>`;
                             } else {
                                 const status = r.can_access ? '到達可能' : '到達不可';
+                                const mapId = `map-${index}`;
 
                                 // 地址显示：如果有标准化地址，显示原地址+标准化地址
                                 let addressDisplay = '';
@@ -254,14 +356,35 @@
                                 }
 
                                 output += `
-                                    <div style="border-left: 3px solid ${r.can_access ? '#28a745' : '#dc3545'}; padding-left: 10px; margin: 10px 0;">
+                                    <div style="border-left: 3px solid ${r.can_access ? '#28a745' : '#dc3545'}; padding-left: 10px; margin: 10px 0; background: white; padding: 15px; border-radius: 4px;">
                                         <p><strong>住所:</strong> ${addressDisplay}</p>
                                         <p><strong>到達可能か:</strong> <span class="${r.can_access ? 'ok' : 'no'}">${status}</span></p>
                                         <p><strong>理由:</strong> ${r.reason}</p>
                                         <p><strong>最寄り港:</strong> ${r.nearest_port}</p>
                                         <p><strong>距離:</strong> ${r.distance}、${r.estimated_time}</p>
-                                    </div>
                                 `;
+
+                                // 如果有经纬度，添加地图
+                                if (r.lat && r.lng) {
+                                    output += `
+                                        <div style="margin-top: 15px; border: 1px solid #ddd; border-radius: 4px; overflow: hidden;">
+                                            <div style="background: white; padding: 10px; border-bottom: 1px solid #ddd; display: flex; gap: 10px; flex-wrap: wrap;">
+                                                <button class="map-btn" onclick="toggleFullscreen('${mapId}')">📍 全画面表示</button>
+                                                <button class="map-btn secondary" onclick="openStreetView(${r.lat}, ${r.lng})">🚶 ストリートビュー</button>
+                                                <button class="map-btn secondary" onclick="openGoogleMaps(${r.lat}, ${r.lng})">🗺️ Google Maps で開く</button>
+                                            </div>
+                                            <div id="${mapId}" style="height: 350px; width: 100%;"></div>
+                                        </div>
+                                    `;
+                                }
+
+                                output += `</div>`;
+
+                                // 初始化地图
+                                if (r.lat && r.lng) {
+                                    const displayAddr = r.used_address || r.address;
+                                    initMap(mapId, r.lat, r.lng, displayAddr);
+                                }
                             }
                         });
                         resultEl.innerHTML = output;

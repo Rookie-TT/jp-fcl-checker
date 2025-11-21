@@ -115,7 +115,9 @@ def check():
             "reason": reason,  # 日文理由
             "nearest_port": f"{port_info['name']}（{port_info['code']}）",
             "distance": f"約{port_info['distance']}km",
-            "estimated_time": f"予想牽引時間：{port_info['estimated_time']}"
+            "estimated_time": f"予想牽引時間：{port_info['estimated_time']}",
+            "lat": lat,  # 纬度
+            "lng": lng   # 经度
         })
     
     return jsonify({"results": results})
