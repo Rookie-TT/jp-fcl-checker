@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>日本住所 FCL 到達性チェックツール</title>
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        body {
+            font-family: 'Hiragino Sans', sans-serif;
+            margin: 20px;
+            background: #f4f4f4;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+
+        h1 {
+            color: #333;
+            text-align: center;
+        }
+
+        textarea {
+            width: 100%;
+            height: 120px;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 16px;
+            box-sizing: border-box;
+            /* 关键：让 padding 包含在 width 内 */
+            resize: vertical;
+            /* 允许垂直调整大小 */
+        }
+
+        button {
+            width: 100%;
+            padding: 12px;
+            background: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: background 0.3s;
+            box-sizing: border-box;
+            /* 确保按钮也使用 border-box */
+        }
+
+        button:hover {
+            background: #0056b3;
+        }
+
+        button:disabled {
+            background: #6c757d;
+            cursor: not-allowed;
+        }
+
+        .result {
+            margin-top: 20px;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            background: #f9f9f9;
+        }
+
+        .ok {
+            color: #28a745;
+            font-weight: bold;
+        }
+
+        .no {
+            color: #dc3545;
+            font-weight: bold;
+        }
+
+        .batch-note {
+            font-size: 14px;
+            color: #666;
+            margin-top: 5px;
+            margin-bottom: 10px;
+        }
+
+        /* 进度条样式 */
+        .progress-container {
+            display: none;
+            margin-top: 15px;
+            background: #e9ecef;
+            border-radius: 4px;
+            overflow: hidden;
+            height: 30px;
+            position: relative;
+        }
+
+        .progress-bar {
+            height: 100%;
+            background: linear-gradient(90deg, #007bff, #0056b3);
+            transition: width 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+            font-size: 14px;
+            min-width: 30px;
+        }
+
+        .progress-text {
+            position: absolute;
+            width: 100%;
+            text-align: center;
+            line-height: 30px;
+            color: #333;
+            font-weight: bold;
+            font-size: 14px;
+            z-index: 1;
+        }
+
+        .loading-spinner {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 3px solid rgba(255, 255, 255, .3);
+            border-radius: 50%;
+            border-top-color: #fff;
+            animation: spin 1s ease-in-out infinite;
+            margin-right: 8px;
+            vertical-align: middle;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        /* 地图样式 */
+        .map-container {
+            margin-top: 20px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            overflow: hidden;
+            display: none;
+        }
+
+        #map {
+            height: 400px;
+            width: 100%;
+        }
+
+        .map-controls {
+            background: white;
+            padding: 10px;
+            border-bottom: 1px solid #ddd;
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .map-btn {
+            padding: 8px 16px;
+            background: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background 0.3s;
+        }
+
+        .map-btn:hover {
+            background: #0056b3;
+        }
+
+        .map-btn.secondary {
+            background: #6c757d;
+        }
+
+        .map-btn.secondary:hover {
+            background: #5a6268;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h1>日本住所 FCL 到達性チェックツール</h1>
+        <p style="text-align: center; color: #666;">住所を入力（複数行対応：1行1住所）。40フィートコンテナの到達可能性と最寄り港を確認。</p>
+
+        <textarea id="addresses" placeholder="例:&#10;神奈川県横浜市鶴見区大黒ふ頭1-2-3&#10;京都府京都市東山区祇園町南側579"></textarea>
+        <div class="batch-note">※ 複数住所を改行で入力可能（バッチ処理）。</div>
+        
+        <!-- 车辆类型选择 -->
+        <div style="margin: 15px 0;">
+            <label for="vehicleType" style="font-weight: bold; display: block; margin-bottom: 8px;">車両タイプ:</label>
+            <select id="vehicleType" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 16px; box-sizing: border-box;">
+                <option value="40ft">40ft用トレーラー（幅2.5m）</option>
+                <option value="20ft">20ft用トレーラー（幅2.5m）</option>
+                <option value="10t">10t飛翼車（幅2.48～2.50m）</option>
+                <option value="4t">4t飛翼車（幅2.30～2.35m）</option>
+                <option value="2t">2t箱型トラック（幅1.88～2.10m）</option>
+            </select>
+        </div>
+        
+        <button id="checkBtn" onclick="checkAddresses()">チェック実行</button>
+
+        <!-- 进度条 -->
+        <div id="progressContainer" class="progress-container">
+            <div class="progress-text" id="progressText">処理中... 0%</div>
+            <div class="progress-bar" id="progressBar"></div>
+        </div>
+
+        <div id="result" class="result" style="display: none;"></div>
+    </div>
+
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+        let maps = {}; // 存储所有地图实例
+
+        function initMap(mapId, lat, lng, address) {
+            // 延迟初始化，确保 DOM 已渲染
+            setTimeout(() => {
+                const mapDiv = document.getElementById(mapId);
+                if (!mapDiv) return;
+                
+                // 创建地图
+                const map = L.map(mapId).setView([lat, lng], 16);
+                
+                // 添加 OpenStreetMap 图层
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    attribution: '© OpenStreetMap contributors',
+                    maxZoom: 19
+                }).addTo(map);
+                
+                // 添加标记
+                L.marker([lat, lng]).addTo(map)
+                    .bindPopup(`<b>${address}</b><br>緯度: ${lat.toFixed(6)}<br>経度: ${lng.toFixed(6)}`)
+                    .openPopup();
+                
+                // 保存地图实例
+                maps[mapId] = map;
+            }, 100);
+        }
+
+        function toggleFullscreen(mapId) {
+            const mapDiv = document.getElementById(mapId);
+            if (!document.fullscreenElement) {
+                mapDiv.requestFullscreen().then(() => {
+                    setTimeout(() => {
+                        if (maps[mapId]) maps[mapId].invalidateSize();
+                    }, 100);
+                });
+            } else {
+                document.exitFullscreen();
+            }
+        }
+
+        function openStreetView(lat, lng) {
+            const url = `https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${lat},${lng}`;
+            window.open(url, '_blank');
+        }
+
+        function openGoogleMaps(lat, lng) {
+            const url = `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`;
+            window.open(url, '_blank');
+        }
+
+        async function checkAddresses() {
+            const addresses = document.getElementById('addresses').value.trim().split('\n').filter(a => a.trim());
+            const vehicleType = document.getElementById('vehicleType').value;
+            
+            if (!addresses.length) {
+                alert('住所を入力してください');
+                return;
+            }
+
+            // 获取元素
+            const checkBtn = document.getElementById('checkBtn');
+            const progressContainer = document.getElementById('progressContainer');
+            const progressBar = document.getElementById('progressBar');
+            const progressText = document.getElementById('progressText');
+            const resultEl = document.getElementById('result');
+
+            // 禁用按钮，显示进度条
+            checkBtn.disabled = true;
+            checkBtn.innerHTML = '<span class="loading-spinner"></span>処理中...';
+            progressContainer.style.display = 'block';
+            resultEl.style.display = 'none';
+
+            // 初始化进度
+            let progress = 0;
+            progressBar.style.width = '0%';
+            progressText.textContent = '処理中... 0%';
+
+            // 模拟进度更新（因为后端是一次性返回，我们模拟进度）
+            const progressInterval = setInterval(() => {
+                if (progress < 90) {
+                    progress += Math.random() * 15;
+                    if (progress > 90) progress = 90;
+                    progressBar.style.width = progress + '%';
+                    progressText.textContent = `処理中... ${Math.round(progress)}%`;
+                }
+            }, 300);
+
+            try {
+                // 发送请求
+                const res = await fetch('/check', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        addresses: addresses,
+                        vehicle_type: vehicleType 
+                    })
+                });
+
+                const data = await res.json();
+
+                // 完成进度
+                clearInterval(progressInterval);
+                progress = 100;
+                progressBar.style.width = '100%';
+                progressText.textContent = '完了！ 100%';
+
+                // 延迟一下显示结果
+                setTimeout(() => {
+                    progressContainer.style.display = 'none';
+
+                    // 显示结果
+                    if (data.error) {
+                        resultEl.innerHTML = `<p style="color: red;">エラー: ${data.error}</p>`;
+                    } else {
+                        let output = '<h3>結果:</h3>';
+                        
+                        data.results.forEach((r, index) => {
+                            if (r.error) {
+                                output += `<p><strong>${r.address || '不明'}:</strong> ${r.error}</p>`;
+                            } else {
+                                const status = r.can_access ? '到達可能' : '到達不可';
+                                const mapId = `map-${index}`;
+
+                                // 地址显示：如果有标准化地址，显示原地址+标准化地址
+                                let addressDisplay = '';
+                                if (r.used_address && r.used_address !== r.address) {
+                                    addressDisplay = `<span style="color: #999; font-size: 0.85em;">${r.address}</span> <span style="color: #007bff; font-weight: bold; font-size: 1.05em;">（${r.used_address}）</span>`;
+                                } else {
+                                    addressDisplay = r.address;
+                                }
+
+                                output += `
+                                    <div style="border-left: 3px solid ${r.can_access ? '#28a745' : '#dc3545'}; padding-left: 10px; margin: 10px 0; background: white; padding: 15px; border-radius: 4px;">
+                                        <p><strong>住所:</strong> ${addressDisplay}</p>
+                                        <p><strong>到達可能か:</strong> <span class="${r.can_access ? 'ok' : 'no'}">${status}</span></p>
+                                        <p><strong>理由:</strong> ${r.reason}</p>
+                                        <p><strong>最寄り港:</strong> ${r.nearest_port}</p>
+                                        <p><strong>距離:</strong> ${r.distance}、${r.estimated_time}</p>
+                                `;
+
+                                // 如果有经纬度，添加地图
+                                if (r.lat && r.lng) {
+                                    output += `
+                                        <div style="margin-top: 15px; border: 1px solid #ddd; border-radius: 4px; overflow: hidden;">
+                                            <div style="background: white; padding: 10px; border-bottom: 1px solid #ddd; display: flex; gap: 10px; flex-wrap: wrap;">
+                                                <button class="map-btn" onclick="toggleFullscreen('${mapId}')">📍 全画面表示</button>
+                                                <button class="map-btn secondary" onclick="openStreetView(${r.lat}, ${r.lng})">🚶 ストリートビュー</button>
+                                                <button class="map-btn secondary" onclick="openGoogleMaps(${r.lat}, ${r.lng})">🗺️ Google Maps で開く</button>
+                                            </div>
+                                            <div id="${mapId}" style="height: 350px; width: 100%;"></div>
+                                        </div>
+                                    `;
+                                }
+
+                                output += `</div>`;
+
+                                // 初始化地图
+                                if (r.lat && r.lng) {
+                                    const displayAddr = r.used_address || r.address;
+                                    initMap(mapId, r.lat, r.lng, displayAddr);
+                                }
+                            }
+                        });
+                        resultEl.innerHTML = output;
+                    }
+                    resultEl.style.display = 'block';
+
+                    // 恢复按钮
+                    checkBtn.disabled = false;
+                    checkBtn.innerHTML = 'チェック実行';
+                }, 500);
+
+            } catch (error) {
+                // 错误处理
+                clearInterval(progressInterval);
+                progressContainer.style.display = 'none';
+                resultEl.innerHTML = `<p style="color: red;">エラー: ${error.message}</p>`;
+                resultEl.style.display = 'block';
+                checkBtn.disabled = false;
+                checkBtn.innerHTML = 'チェック実行';
+            }
+        }
+    </script>
+</body>
+
+</html>
