@@ -35,13 +35,29 @@ def get_nearest_port(lat, lng):
     distances = [(p, haversine(lat, lng, p["lat"], p["lng"])) for p in PORTS]
     nearest = min(distances, key=lambda x: x[1])
     port, dist = nearest
-    hours = int(dist // 30)
-    mins = int((dist % 30) / 30 * 60)
-    time_str = f"{hours}時間{mins}分" if hours else f"{mins}分"
+    
+    # 实际道路距离通常是直线距离的 1.3-1.5 倍（城市道路系数）
+    road_distance_factor = 1.4
+    actual_distance = dist * road_distance_factor
+    
+    # 集装箱拖车实际平均速度（考虑市区交通、红绿灯、限速等）
+    # 根据 Google Maps 数据：9.5km 约 20 分钟 → 约 28.5 km/h
+    # 但考虑到拖车较慢，使用保守估计 25 km/h
+    avg_speed = 25  # km/h
+    total_minutes = int((actual_distance / avg_speed) * 60)
+    hours = total_minutes // 60
+    mins = total_minutes % 60
+    
+    # 格式化时间字符串
+    if hours > 0:
+        time_str = f"{hours}時間{mins}分" if mins > 0 else f"{hours}時間"
+    else:
+        time_str = f"{mins}分"
+    
     return {
         "name": port["name"],
         "code": port["code"],
-        "distance": dist,
+        "distance": round(actual_distance, 1),  # 返回实际道路距离
         "estimated_time": time_str
     }
 # 新增：运行时调试（临时加，成功后删）
