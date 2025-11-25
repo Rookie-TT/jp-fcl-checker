@@ -31,24 +31,72 @@ def haversine(lat1, lon1, lat2, lon2):
     c = 2 * math.atan2(math.sqrt(a), math.sqrt(1-a))
     return round(R * c, 1)
 
+def get_route_info(start_lat, start_lng, end_lat, end_lng, timeout=8):
+    """
+    使用 OSRM API 获取实际道路距离和时间
+    :return: (distance_km, duration_minutes) 或 (None, None)
+    """
+    try:
+        # OSRM API - 免费的路线规划服务
+        url = f"http://router.project-osrm.org/route/v1/driving/{start_lng},{start_lat};{end_lng},{end_lat}"
+        params = {
+            "overview": "false",
+            "steps": "false"
+        }
+        
+        resp = requests.get(url, params=params, timeout=timeout)
+        resp.raise_for_status()
+        data = resp.json()
+        
+        if data.get("code") == "Ok" and data.get("routes"):
+            route = data["routes"][0]
+            distance_m = route["distance"]  # 米
+            duration_s = route["duration"]  # 秒
+            
+            distance_km = round(distance_m / 1000, 1)
+            duration_min = int(duration_s / 60)
+            
+            return distance_km, duration_min
+        
+        return None, None
+    except Exception as e:
+        print(f"OSRM 路线查询失败: {e}")
+        return None, None
+
+
 def get_nearest_port(lat, lng):
+    # 先找到直线距离最近的港口
     distances = [(p, haversine(lat, lng, p["lat"], p["lng"])) for p in PORTS]
     nearest = min(distances, key=lambda x: x[1])
-    port, dist = nearest
+    port, straight_dist = nearest
     
-    # 实际道路距离通常是直线距离的 1.3-1.5 倍（城市道路系数）
-    road_distance_factor = 1.4
-    actual_distance = dist * road_distance_factor
+    # 尝试获取实际道路距离和时间
+    actual_distance, actual_duration = get_route_info(lat, lng, port["lat"], port["lng"])
     
-    # 集装箱拖车实际平均速度（考虑市区交通、红绿灯、限速等）
-    # 根据 Google Maps 数据：9.5km 约 20 分钟 → 约 28.5 km/h
-    # 但考虑到拖车较慢，使用保守估计 25 km/h
-    avg_speed = 25  # km/h
-    total_minutes = int((actual_distance / avg_speed) * 60)
+    if actual_distance and actual_duration:
+        # 使用实际路线数据
+        distance = actual_distance
+        
+        # 集装箱拖车调整系数：
+        # 1. 拖车速度慢（加速慢、转弯慢）：+30%
+        # 2. 市区交通拥堵、红绿灯：+20%
+        # 3. 安全驾驶、谨慎操作：+20%
+        # 总计：约 1.7-2.0 倍
+        # 根据实际情况（8.4km 应该约 20-25 分钟），使用 2.0 倍
+        truck_factor = 2.0
+        total_minutes = int(actual_duration * truck_factor)
+    else:
+        # 如果 API 失败，使用估算方法
+        print(f"  使用估算方法计算距离和时间")
+        road_distance_factor = 1.4
+        distance = round(straight_dist * road_distance_factor, 1)
+        avg_speed = 25  # km/h
+        total_minutes = int((distance / avg_speed) * 60)
+    
+    # 格式化时间字符串
     hours = total_minutes // 60
     mins = total_minutes % 60
     
-    # 格式化时间字符串
     if hours > 0:
         time_str = f"{hours}時間{mins}分" if mins > 0 else f"{hours}時間"
     else:
@@ -57,7 +105,7 @@ def get_nearest_port(lat, lng):
     return {
         "name": port["name"],
         "code": port["code"],
-        "distance": round(actual_distance, 1),  # 返回实际道路距离
+        "distance": distance,
         "estimated_time": time_str
     }
 # 新增：运行时调试（临时加，成功后删）
@@ -97,6 +145,16 @@ def check():
         if not addr.strip():
             continue
         
+        # 0. 预检查：是否只有公司名（没有具体地址）
+        company_only_keywords = ["株式会社", "有限会社", "合同会社", "Co.,Ltd", "Corporation", "Inc."]
+        is_company_name = any(keyword in addr for keyword in company_only_keywords)
+        
+        # 检查是否有具体地址信息（都道府县、市区町村、番地等）
+        has_location = any(suffix in addr for suffix in ["都", "道", "府", "県", "市", "区", "町", "村", "丁目", "番地", "-"])
+        
+        # 如果只有公司名，先尝试地理编码（可能在 POI 数据库中）
+        # 如果找不到，再提示需要详细地址
+        
         # 1. NLP 地址解析
         parsed = {"full": addr, "prefecture": "", "city": "", "town": "", "rest": ""}
         try:
@@ -107,12 +165,50 @@ def check():
         # 2. 地图：地理编码
         lat, lng, used_address = geocode(addr)
         if not lat:
-            results.append({
-                "address": addr,
-                "can_access": False,
-                "reason": "座標解析不可、住所を確認してください",
-                "error": "座標解析不可"
-            })
+            # 地理编码失败
+            if is_company_name and not has_location:
+                # 只有公司名，且找不到位置
+                # 检查是否包含设施类型关键词
+                facility_keywords = {
+                    "倉庫": "倉庫施設",
+                    "物流センター": "物流施設",
+                    "配送センター": "配送施設",
+                    "工場": "工場施設",
+                    "事業所": "事業所",
+                    "本社": "本社",
+                    "支店": "支店",
+                    "営業所": "営業所"
+                }
+                
+                facility_type = None
+                for keyword, ftype in facility_keywords.items():
+                    if keyword in addr:
+                        facility_type = ftype
+                        break
+                
+                # 判断设施类型是否通常可达
+                accessible_facilities = ["倉庫施設", "物流施設", "配送施設", "工場施設"]
+                likely_accessible = facility_type in accessible_facilities
+                
+                if likely_accessible:
+                    reason = f"会社名のみ（{facility_type}）で位置情報が見つかりません。以下をお試しください：\n1. 正確な会社名を確認して再入力\n2. 詳細住所（都道府県・市区町村・番地）を追加\n※ {facility_type}は通常コンテナ車対応可能な施設です。"
+                else:
+                    reason = "会社名のみで位置情報が見つかりません。以下をお試しください：\n1. 正確な会社名を確認して再入力\n2. 詳細住所（都道府県・市区町村・番地）を追加"
+                
+                results.append({
+                    "address": addr,
+                    "can_access": False,
+                    "reason": reason,
+                    "error": "住所不明確"
+                })
+            else:
+                # 普通地址找不到
+                results.append({
+                    "address": addr,
+                    "can_access": False,
+                    "reason": "座標解析不可、住所を確認してください",
+                    "error": "座標解析不可"
+                })
             continue
         
         # 3. 地图：OSM 道路
@@ -124,6 +220,19 @@ def check():
         # 5. 最近港口
         port_info = get_nearest_port(lat, lng)
         
+        # 检查是否可能是区域中心点（缺少精确门牌号定位）
+        location_note = None
+        if used_address and addr != used_address:
+            # 如果原地址有门牌号，但解析后的地址看起来像区域级别
+            import re
+            has_house_number_in_input = bool(re.search(r'\b\d+-\d+', addr))
+            has_house_number_in_result = bool(re.search(r'\d+-\d+', used_address))
+            
+            if has_house_number_in_input and has_house_number_in_result:
+                # 检查是否只有区域名称（如：鳥取県大山町八重）
+                if not any(keyword in used_address for keyword in ["丁目", "番地", "号"]):
+                    location_note = "※ 表示位置は地区の中心点です。正確な位置はGoogle Mapsで確認してください。"
+        
         results.append({
             "address": addr,
             "used_address": used_address if used_address != addr else None,  # 实际使用的地址
@@ -133,7 +242,8 @@ def check():
             "distance": f"約{port_info['distance']}km",
             "estimated_time": f"予想牽引時間：{port_info['estimated_time']}",
             "lat": lat,  # 纬度
-            "lng": lng   # 经度
+            "lng": lng,  # 经度
+            "location_note": location_note  # 位置说明
         })
     
     return jsonify({"results": results})
