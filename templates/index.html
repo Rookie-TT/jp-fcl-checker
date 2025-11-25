@@ -193,10 +193,15 @@
 <body>
     <div class="container">
         <h1>日本住所 FCL 到達性チェックツール</h1>
-        <p style="text-align: center; color: #666;">住所を入力（複数行対応：1行1住所）。40フィートコンテナの到達可能性と最寄り港を確認。</p>
+        <p style="text-align: center; color: #666;">住所を入力（複数行対応：1行1住所）。整箱貨物（FCL）の到達可能性と最寄り港を確認。</p>
 
-        <textarea id="addresses" placeholder="例:&#10;神奈川県横浜市鶴見区大黒ふ頭1-2-3&#10;京都府京都市東山区祇園町南側579"></textarea>
-        <div class="batch-note">※ 複数住所を改行で入力可能（バッチ処理）。</div>
+        <textarea id="addresses" placeholder="例:&#10;神奈川県横浜市鶴見区大黒ふ頭1-2-3&#10;京都府京都市東山区祇園町南側579&#10;大阪運輸倉庫株式会社 本社"></textarea>
+        <div class="batch-note">
+            ※ 複数住所を改行で入力可能（バッチ処理）。<br>
+            ※ 会社名のみの場合は、正確な会社名を入力してください（例：大阪運輸倉庫株式会社 本社）。<br>
+            ※ 会社名で見つからない場合は、詳細住所（都道府県・市区町村・番地）を入力してください。<br>
+            ※ システムは街道レベルの住所を返します。具体的な建物名は地図・ストリートビューで確認できます。
+        </div>
         
         <!-- 车辆类型选择 -->
         <div style="margin: 15px 0;">
@@ -264,13 +269,27 @@
             }
         }
 
-        function openStreetView(lat, lng) {
-            const url = `https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${lat},${lng}`;
+        function openStreetView(lat, lng, address) {
+            // 使用地址搜索街景（更可靠），如果没有地址则使用坐标
+            let url;
+            if (address) {
+                // 先打开地图，然后用户可以拖动小黄人到有街景的地方
+                url = `https://www.google.com/maps/search/${encodeURIComponent(address)}/@${lat},${lng},17z`;
+            } else {
+                // 使用坐标打开街景（可能没有覆盖）
+                url = `https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${lat},${lng}`;
+            }
             window.open(url, '_blank');
         }
 
         function openGoogleMaps(lat, lng) {
             const url = `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`;
+            window.open(url, '_blank');
+        }
+
+        function openGoogleMapsSearch(address) {
+            // 使用地址搜索（更精确）
+            const url = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`;
             window.open(url, '_blank');
         }
 
@@ -342,7 +361,14 @@
                         
                         data.results.forEach((r, index) => {
                             if (r.error) {
-                                output += `<p><strong>${r.address || '不明'}:</strong> ${r.error}</p>`;
+                                // 显示错误信息，包括详细理由
+                                output += `
+                                    <div style="border-left: 3px solid #ffc107; padding-left: 10px; margin: 10px 0; background: #fff9e6; padding: 15px; border-radius: 4px;">
+                                        <p><strong>住所:</strong> ${r.address || '不明'}</p>
+                                        <p><strong>状態:</strong> <span style="color: #856404; font-weight: bold;">⚠️ ${r.error}</span></p>
+                                        <p><strong>詳細:</strong> ${r.reason || r.error}</p>
+                                    </div>
+                                `;
                             } else {
                                 const status = r.can_access ? '到達可能' : '到達不可';
                                 const mapId = `map-${index}`;
@@ -358,6 +384,7 @@
                                 output += `
                                     <div style="border-left: 3px solid ${r.can_access ? '#28a745' : '#dc3545'}; padding-left: 10px; margin: 10px 0; background: white; padding: 15px; border-radius: 4px;">
                                         <p><strong>住所:</strong> ${addressDisplay}</p>
+                                        ${r.location_note ? `<p style="color: #856404; background: #fff3cd; padding: 8px; border-radius: 4px; font-size: 0.9em;">⚠️ ${r.location_note}</p>` : ''}
                                         <p><strong>到達可能か:</strong> <span class="${r.can_access ? 'ok' : 'no'}">${status}</span></p>
                                         <p><strong>理由:</strong> ${r.reason}</p>
                                         <p><strong>最寄り港:</strong> ${r.nearest_port}</p>
@@ -366,12 +393,19 @@
 
                                 // 如果有经纬度，添加地图
                                 if (r.lat && r.lng) {
+                                    // 准备搜索地址（优先使用日文地址）
+                                    const searchAddress = r.used_address || r.address;
                                     output += `
                                         <div style="margin-top: 15px; border: 1px solid #ddd; border-radius: 4px; overflow: hidden;">
-                                            <div style="background: white; padding: 10px; border-bottom: 1px solid #ddd; display: flex; gap: 10px; flex-wrap: wrap;">
-                                                <button class="map-btn" onclick="toggleFullscreen('${mapId}')">📍 全画面表示</button>
-                                                <button class="map-btn secondary" onclick="openStreetView(${r.lat}, ${r.lng})">🚶 ストリートビュー</button>
-                                                <button class="map-btn secondary" onclick="openGoogleMaps(${r.lat}, ${r.lng})">🗺️ Google Maps で開く</button>
+                                            <div style="background: #f8f9fa; padding: 10px; border-bottom: 1px solid #ddd;">
+                                                <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 8px;">
+                                                    <button class="map-btn" onclick="toggleFullscreen('${mapId}')">📍 全画面表示</button>
+                                                    <button class="map-btn secondary" onclick="openStreetView(${r.lat}, ${r.lng}, '${searchAddress.replace(/'/g, "\\'")}')">🚶 ストリートビュー</button>
+                                                    <button class="map-btn secondary" onclick="openGoogleMapsSearch('${searchAddress.replace(/'/g, "\\'")}')">🔍 Google Maps で検索</button>
+                                                </div>
+                                                <div style="font-size: 0.85em; color: #666;">
+                                                    ℹ️ 地図の位置が不正確な場合は、「Google Maps で検索」ボタンで正確な位置を確認できます。
+                                                </div>
                                             </div>
                                             <div id="${mapId}" style="height: 350px; width: 100%;"></div>
                                         </div>
