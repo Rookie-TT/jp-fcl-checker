@@ -10,50 +10,57 @@ destination_ports:
   
   - name: "東京港"
     code: "JPTYO"
-    lat: 35.6329
-    lng: 139.7677
+    address: "東京都品川区八潮2-3-10"
+    lat: 35.606261
+    lng: 139.760633
     type: "main"
     region: "関東"
   
   - name: "横浜港"
     code: "JPYOK"
-    lat: 35.4437
-    lng: 139.6380
+    address: "神奈川県横浜市中区南本牧2"
+    lat: 35.402435
+    lng: 139.675499
     type: "main"
     region: "関東"
   
   - name: "名古屋港"
     code: "JPNGO"
-    lat: 35.0833
-    lng: 136.8833
+    address: "愛知県弥富市富浜5-1"
+    lat: 35.020551
+    lng: 136.791775
     type: "main"
     region: "中部"
   
   - name: "大阪港"
     code: "JPOSA"
-    lat: 34.6537
-    lng: 135.4300
+    address: "大阪市此花区夢洲東1"
+    lat: 34.650730
+    lng: 135.396372
     type: "main"
     region: "関西"
   
   - name: "神戸港"
     code: "JPUKB"
-    lat: 34.6833
-    lng: 135.1833
+    address: "兵庫県神戸市中央区港島9-10"
+    lat: 34.653890
+    lng: 135.239553
     type: "main"
     region: "関西"
   
   - name: "博多港"
     code: "JPHKT"
-    lat: 33.6167
-    lng: 130.4000
+    address: "福岡県福岡市東区みなと香椎1-1-3"
+    lat: 33.660269
+    lng: 130.407513
     type: "main"
     region: "九州"
   
   - name: "門司港"
     code: "JPMOJ"
-    lat: 33.9400
-    lng: 130.9600
+    address: "北九州市門司区太刀浦海岸19"
+    lat: 33.964517
+    lng: 130.998210
     type: "main"
     region: "九州"
   
