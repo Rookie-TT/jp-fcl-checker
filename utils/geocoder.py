@@ -130,14 +130,21 @@ def reverse_geocode_nominatim(lat: float, lng: float, timeout=8):
                 parts.append(addr_parts["suburb"])
             
             # 町丁目
+            has_neighbourhood = False
             if "neighbourhood" in addr_parts:
                 parts.append(addr_parts["neighbourhood"])
+                has_neighbourhood = True
             elif "quarter" in addr_parts:
                 parts.append(addr_parts["quarter"])
+                has_neighbourhood = True
             
-            # 街道
-            if "road" in addr_parts:
-                parts.append(addr_parts["road"])
+            # 街道（只在没有町丁目信息时添加）
+            # 避免出现"深江浜町１７号線"这样的组合
+            if "road" in addr_parts and not has_neighbourhood:
+                road_name = addr_parts["road"]
+                # 跳过纯数字的道路名（如"１７号線"）
+                if not road_name.replace("号線", "").replace("号", "").strip().isdigit():
+                    parts.append(road_name)
             
             # 门牌号
             if "house_number" in addr_parts:
@@ -173,8 +180,10 @@ def geocode_nominatim(address: str, country_code="jp", timeout=8):
     params = {
         "q": address,
         "format": "json",
-        "limit": 1,
-        "addressdetails": 1
+        "limit": 3,  # 增加到3个结果，选择最精确的
+        "addressdetails": 1,
+        "extratags": 1,  # 获取额外标签
+        "namedetails": 1  # 获取名称详情
     }
     
     # 如果指定了国家代码，添加到参数中
@@ -186,7 +195,18 @@ def geocode_nominatim(address: str, country_code="jp", timeout=8):
         resp.raise_for_status()
         data = resp.json()
         if data and len(data) > 0:
-            result = data[0]
+            # 选择最精确的结果（优先选择有 house_number 的）
+            result = None
+            for item in data:
+                if "address" in item and "house_number" in item["address"]:
+                    result = item
+                    print(f"  找到精确门牌号: {item['address'].get('house_number')}")
+                    break
+            
+            # 如果没有门牌号，使用第一个结果
+            if not result:
+                result = data[0]
+            
             lat = float(result["lat"])
             lng = float(result["lon"])
             
@@ -350,25 +370,235 @@ def simplify_address(address: str):
     return candidates
 
 
+def extract_postal_code(address: str):
+    """
+    从地址中提取日本邮编
+    支持格式：689-3104, 〒689-3104, 6893104
+    :return: 邮编字符串或 None
+    """
+    import re
+    
+    # 匹配日本邮编格式：XXX-XXXX 或 XXXXXXX
+    patterns = [
+        r'〒?\s*(\d{3}-\d{4})',  # 689-3104 或 〒689-3104
+        r'\b(\d{7})\b',          # 6893104
+    ]
+    
+    for pattern in patterns:
+        match = re.search(pattern, address)
+        if match:
+            postal = match.group(1)
+            # 标准化为 XXX-XXXX 格式
+            if '-' not in postal:
+                postal = f"{postal[:3]}-{postal[3:]}"
+            return postal
+    
+    return None
+
+
+def geocode_by_postal_code(postal_code: str, timeout=8):
+    """
+    使用邮编进行地理编码
+    优先使用 GSI API，备用 Nominatim
+    :param postal_code: 日本邮编（格式：XXX-XXXX）
+    :return: (lat, lng, japanese_address) 或 (None, None, None)
+    """
+    # 方法1: 尝试 GSI API（日本国土地理院）
+    try:
+        gsi_url = "https://msearch.gsi.go.jp/address-search/AddressSearch"
+        resp = requests.get(gsi_url, params={"q": postal_code}, timeout=timeout)
+        resp.raise_for_status()
+        data = resp.json()
+        
+        if isinstance(data, list) and len(data) > 0:
+            feature = data[0]
+            if "geometry" in feature and "coordinates" in feature["geometry"]:
+                coord = feature["geometry"]["coordinates"]
+                lat = float(coord[1])
+                lng = float(coord[0])
+                
+                # 提取日文地址
+                japanese_address = None
+                if "properties" in feature:
+                    props = feature["properties"]
+                    # GSI 返回完整的日文地址
+                    if "title" in props:
+                        japanese_address = props["title"]
+                
+                if japanese_address:
+                    print(f"  GSI 邮编查询成功: {postal_code} → {japanese_address}")
+                    return lat, lng, japanese_address
+    except Exception as e:
+        print(f"  GSI 邮编查询失败: {e}")
+    
+    # 方法2: 备用 Nominatim
+    try:
+        url = "https://nominatim.openstreetmap.org/search"
+        headers = {
+            "User-Agent": "FCL-Checker/1.0 (https://github.com/your-repo)",
+            "Accept-Language": "ja"
+        }
+        
+        # 尝试多种查询方式（必须限定在日本）
+        queries = [
+            {"q": f"{postal_code}, Japan", "countrycodes": "jp"},
+            {"postalcode": postal_code, "countrycodes": "jp"},
+        ]
+        
+        for params in queries:
+            params.update({"format": "json", "limit": 1, "addressdetails": 1})
+            
+            resp = requests.get(url, params=params, headers=headers, timeout=timeout)
+            resp.raise_for_status()
+            data = resp.json()
+            
+            if data and len(data) > 0:
+                result = data[0]
+                
+                # 验证是否在日本
+                if "address" in result:
+                    country = result["address"].get("country_code", "").upper()
+                    if country != "JP":
+                        print(f"  跳过非日本结果: {country}")
+                        continue
+                
+                lat = float(result["lat"])
+                lng = float(result["lon"])
+                
+                # 提取日文地址
+                japanese_address = None
+                if "address" in result:
+                    addr_parts = result["address"]
+                    parts = []
+                    
+                    # 构建日文地址（按日本地址格式）
+                    for key in ["state", "city", "town", "village", "city_district", "suburb", "neighbourhood", "quarter"]:
+                        if key in addr_parts:
+                            val = addr_parts[key]
+                            # 转换 ISO 代码为日文
+                            if key == "state" and val.startswith("JP-"):
+                                iso_map = {
+                                    "JP-31": "鳥取県", "JP-28": "兵庫県", "JP-13": "東京都",
+                                    "JP-27": "大阪府", "JP-26": "京都府", "JP-01": "北海道"
+                                }
+                                val = iso_map.get(val, val)
+                            parts.append(val)
+                    
+                    if parts:
+                        japanese_address = "".join(parts)
+                
+                if not japanese_address:
+                    japanese_address = result.get("display_name", None)
+                
+                if japanese_address:
+                    print(f"  Nominatim 邮编查询成功: {postal_code} → {japanese_address}")
+                    return lat, lng, japanese_address
+        
+        return None, None, None
+    except Exception as e:
+        print(f"  Nominatim 邮编查询失败: {e}")
+        return None, None, None
+
+
 def simplify_english_address(address: str):
     """
     简化英文日本地址
     例如：7F, KR GinzaⅡ, 2-15-2, Ginza, Chuo-Ku, Tokyo, 104-0061, Japan
-    返回：["Ginza, Chuo-Ku, Tokyo, Japan", "Chuo-Ku, Tokyo, Japan", "Tokyo, Japan"]
+    返回：["2-15-2 Ginza, Chuo-Ku, Tokyo, Japan", "Ginza, Chuo-Ku, Tokyo, Japan", ...]
     """
     import re
     
     candidates = [address]
     
-    # 移除楼层信息（7F, 8th Floor等）
-    addr = re.sub(r'\b\d+F\b|\b\d+(st|nd|rd|th)\s+Floor\b', '', address, flags=re.IGNORECASE)
+    # 提取街道号码（如 2-15-2, 822-1）
+    street_number_match = re.search(r'\b(\d+-\d+(?:-\d+)?)\b', address)
+    street_number = street_number_match.group(1) if street_number_match else None
+    
+    # 提取邮编
+    postal_match = re.search(r'\b(\d{3}-?\d{4})\b', address)
+    postal_code = postal_match.group(1) if postal_match else None
+    if postal_code and '-' not in postal_code:
+        postal_code = f"{postal_code[:3]}-{postal_code[3:]}"
+    
+    # 移除楼层信息（7F, 8th Floor等）和 NO. 前缀
+    addr = re.sub(r'\bNO\.\s*|\b\d+F\b|\b\d+(st|nd|rd|th)\s+Floor\b', '', address, flags=re.IGNORECASE)
     addr = re.sub(r'\s+,\s+', ', ', addr).strip(', ')
     if addr != address and addr not in candidates:
         candidates.append(addr)
     
-    # 移除建筑物名称（在第一个逗号之前的内容）
+    # 构建简化的查询：主要地名 + 邮编
+    # 例如：Yae, Daisen, Tottori 689-3104, Japan
+    parts = [p.strip() for p in address.split(',')]
+    main_locations = []
+    
+    for part in parts:
+        # 从包含门牌号的部分提取地名（如 NO.822-1.YAE → YAE）
+        if re.search(r'\bNO\.\s*\d+-\d+\.?([A-Z]+)', part, re.IGNORECASE):
+            # 提取门牌号后的地名
+            match = re.search(r'\bNO\.\s*\d+-\d+\.?([A-Z]+)', part, re.IGNORECASE)
+            if match:
+                location_name = match.group(1)
+                main_locations.append(location_name)
+                continue
+        
+        # 跳过纯门牌号、楼层
+        if re.search(r'^\d+F\b|^NO\.\s*\d+-\d+$|^\d+-\d+$', part, re.IGNORECASE):
+            continue
+        
+        # 处理 DISTRICT, -KU, -MACHI 等行政区划后缀
+        if re.search(r'\b(DISTRICT|PREFECTURE|COUNTY)\b', part, re.IGNORECASE):
+            # 提取主要地名（去除后缀）
+            main_name = re.sub(r'\s+(DISTRICT|PREFECTURE|COUNTY)\b', '', part, flags=re.IGNORECASE).strip()
+            if main_name:
+                main_locations.append(main_name)
+        elif not re.search(r'\bJAPAN\b', part, re.IGNORECASE):
+            main_locations.append(part)
+    
+    # 构建简化地址：主要地名 + 邮编 + Japan
+    if main_locations and postal_code:
+        # 取最后2-3个主要地名（通常是市/町和都道府县）
+        key_locations = main_locations[-2:] if len(main_locations) >= 2 else main_locations
+        simplified = ', '.join(key_locations) + f', {postal_code}, Japan'
+        if simplified not in candidates:
+            candidates.insert(1, simplified)  # 高优先级
+    
+    # 如果有街道号码，构建：门牌号 + 主要地名
+    if street_number and main_locations:
+        # 使用所有主要地名（包括 YAE, DAISEN, TOTTORI）
+        addr_with_number = f"{street_number}, " + ', '.join(main_locations) + ', Japan'
+        if addr_with_number not in candidates:
+            candidates.insert(1, addr_with_number)
+        
+        # 也尝试只用最后2-3个地名
+        if len(main_locations) >= 2:
+            key_locations = main_locations[-2:]
+            addr_short = f"{street_number}, " + ', '.join(key_locations) + ', Japan'
+            if addr_short not in candidates:
+                candidates.insert(2, addr_short)
+    
+    # 移除建筑物名称，但保留街道号码
     parts = address.split(',')
     if len(parts) > 2:
+        # 如果有街道号码，构建精确地址
+        if street_number:
+            # 找到地区名（Ginza, Chuo-Ku等）
+            for i, part in enumerate(parts):
+                part = part.strip()
+                # 跳过楼层和建筑物名称
+                if re.search(r'\d+F\b|ビル|タワー|Building', part, re.IGNORECASE):
+                    continue
+                # 如果这部分包含街道号码，跳过
+                if street_number in part:
+                    continue
+                # 找到地区名后，构建地址
+                if i > 0 and not re.search(r'^\d+-\d+', part):
+                    # 构建：街道号码 + 地区名 + 后续部分
+                    remaining = ', '.join(parts[i:]).strip()
+                    precise_addr = f"{street_number}, {remaining}"
+                    if precise_addr not in candidates:
+                        candidates.insert(1, precise_addr)  # 优先级高
+                    break
+        
         # 尝试从第二部分开始
         addr = ', '.join(parts[1:]).strip()
         if addr not in candidates:
@@ -401,13 +631,89 @@ def simplify_english_address(address: str):
 
 def geocode(address: str):
     """
-    智能地理编码：优先 GSI，支持地址降级策略
+    智能地理编码：优先邮编，然后 GSI，支持地址降级策略
     如果详细地址找不到，自动尝试简化版本
     :param address: 地址字符串（日文或英文）
     :return: (lat, lng, used_address) 元组；若失败，返回 (None, None, None)
             used_address 是实际用于解析的地址（英文输入时返回日文地址）
     """
     original_address = address
+    
+    # 策略0: 优先尝试邮编查询（最可靠）
+    postal_code = extract_postal_code(address)
+    postal_result = None
+    if postal_code:
+        print(f"检测到邮编: {postal_code}")
+        lat, lng, japanese_addr = geocode_by_postal_code(postal_code, timeout=6)
+        if lat and lng:
+            # 尝试使用反向地理编码获取更完整的地址
+            reverse_addr = reverse_geocode_nominatim(lat, lng, timeout=6)
+            if reverse_addr and len(reverse_addr) > len(japanese_addr or ""):
+                japanese_addr = reverse_addr
+                
+                # 去除重复的町名（如：深江浜町深江浜町 → 深江浜町）
+                import re
+                # 查找重复的町名模式
+                japanese_addr = re.sub(r'([^市区町村]{2,}町)\1', r'\1', japanese_addr)
+                
+                print(f"  使用反向地理编码获取完整地址: {japanese_addr}")
+            
+            # 验证邮编结果是否合理：检查地址中的地名是否匹配
+            # 提取原地址中的主要地名（城市、区等）
+            address_upper = address.upper()
+            location_keywords = []
+            
+            # 提取可能的地名关键词
+            for part in address.split(','):
+                part = part.strip().upper()
+                # 跳过邮编、门牌号、国家名
+                if re.search(r'\d{3}-?\d{4}|^\d+-\d+|JAPAN', part):
+                    continue
+                # 移除 NO., -KU, -MACHI 等后缀
+                part = re.sub(r'\bNO\.\s*|\b-?(KU|MACHI|CHO|SHI|GUN)\b', '', part).strip()
+                if len(part) > 2:
+                    location_keywords.append(part)
+            
+            # 检查日文地址是否包含这些关键词的日文翻译
+            # 简单验证：如果原地址包含 TOTTORI，日文地址应该包含 鳥取
+            location_map = {
+                'TOTTORI': '鳥取', 'KOBE': '神戸', 'TOKYO': '東京', 'OSAKA': '大阪',
+                'KYOTO': '京都', 'YOKOHAMA': '横浜', 'NAGOYA': '名古屋',
+                'DAISEN': '大山', 'SAIHAKU': '西伯', 'HIGASHINADA': '東灘',
+                'FUKAEHAMA': '深江浜'
+            }
+            
+            is_valid = False
+            for keyword in location_keywords:
+                if keyword in location_map:
+                    japanese_keyword = location_map[keyword]
+                    if japanese_keyword in (japanese_addr or ''):
+                        is_valid = True
+                        break
+            
+            # 如果没有找到匹配的关键词，可能是邮编查询返回了错误位置
+            if not is_valid and location_keywords:
+                print(f"  ⚠️ 邮编查询结果可能不准确（地名不匹配），将尝试完整地址查询")
+                postal_result = None  # 不使用邮编结果
+            else:
+                # 如果地址中有门牌号，尝试添加到日文地址中
+                street_number_match = re.search(r'\b(\d+-\d+(?:-\d+)?)\b', address)
+                if street_number_match and japanese_addr:
+                    street_number = street_number_match.group(1)
+                    # 检查日文地址中是否已经包含门牌号
+                    if street_number not in japanese_addr:
+                        # 将门牌号添加到日文地址末尾
+                        japanese_addr = f"{japanese_addr}{street_number}"
+                        print(f"  添加门牌号: {street_number}")
+                
+                print(f"  ✓ 邮编查询成功")
+                postal_result = (lat, lng, japanese_addr if japanese_addr else original_address)
+        
+        time.sleep(0.3)
+    
+    # 如果邮编查询成功且验证通过，直接返回
+    if postal_result:
+        return postal_result
     
     # 检查是否为日文地址
     is_japanese = any('\u3040' <= c <= '\u309F' or  # 平假名
@@ -443,6 +749,18 @@ def geocode(address: str):
         if lat and lng:
             # 如果输入是英文，返回日文地址；如果输入是日文，返回简化后的地址
             used_address = japanese_addr if (japanese_addr and not is_japanese) else addr
+            
+            # 如果是英文地址且有日文地址，尝试添加门牌号
+            if not is_japanese and japanese_addr:
+                street_number_match = re.search(r'\b(\d+-\d+(?:-\d+)?)\b', original_address)
+                if street_number_match:
+                    street_number = street_number_match.group(1)
+                    # 检查日文地址中是否已经包含门牌号
+                    if street_number not in japanese_addr:
+                        # 将门牌号添加到日文地址末尾
+                        used_address = f"{japanese_addr}{street_number}"
+                        print(f"  添加门牌号到日文地址: {street_number}")
+            
             if addr != original_address:
                 print(f"  ✓ 使用简化地址成功: {addr}")
             else:
@@ -457,6 +775,18 @@ def geocode(address: str):
         print(f"  ✓ Nominatim 全球成功")
         # 如果输入是英文且获取到日文地址，返回日文地址
         used_address = japanese_addr if (japanese_addr and not is_japanese) else original_address
+        
+        # 如果是英文地址且有日文地址，尝试添加门牌号
+        if not is_japanese and japanese_addr:
+            street_number_match = re.search(r'\b(\d+-\d+(?:-\d+)?)\b', original_address)
+            if street_number_match:
+                street_number = street_number_match.group(1)
+                # 检查日文地址中是否已经包含门牌号
+                if street_number not in japanese_addr:
+                    # 将门牌号添加到日文地址末尾
+                    used_address = f"{japanese_addr}{street_number}"
+                    print(f"  添加门牌号到日文地址: {street_number}")
+        
         return lat, lng, used_address
     
     print(f"  ✗ 所有尝试失败: {original_address}")
