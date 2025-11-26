@@ -164,6 +164,13 @@ def can_access_fcl(roads, parsed, vehicle_type="40ft"):
     # 车宽 + 左右各 0.3m 安全距离
     required_lane_width = vehicle_width + 0.6
     
+    # 对向车辆通行所需宽度
+    # 假设对向车辆为普通车（宽约2m）+ 安全余量0.5m
+    oncoming_vehicle_width = 2.5
+    
+    # 双向通行所需最小宽度
+    min_width_for_two_way = required_lane_width + oncoming_vehicle_width
+    
     # ========== 转弯半径判断 ==========
     # 40ft 拖车转弯半径约 12-15m，需要较宽的道路
     # 如果是小路且没有工业设施，转弯可能困难
@@ -173,27 +180,35 @@ def can_access_fcl(roads, parsed, vehicle_type="40ft"):
     
     # ========== 综合判断 ==========
     
-    # 情况1：道路很宽（总宽度 >= 最小要求 + 2m），单向车道足够
-    if max_width >= min_width_required + 2.0:
-        return True, f"道路幅{max_width:.1f}m（片側約{effective_lane_width:.1f}m）、{vehicle_name}対応可能"
+    # 情况1：道路足够宽，可以双向通行（不影响对向车辆）
+    if max_width >= min_width_for_two_way:
+        return True, f"道路幅{max_width:.1f}m、{vehicle_name}対応可能（対向車通行に支障なし）"
     
-    # 情况2：道路宽度刚好满足要求
-    elif max_width >= min_width_required:
+    # 情况2：道路宽度满足车辆要求，但可能影响对向车辆
+    elif max_width >= min_width_required + 1.5:
         if turning_difficult:
             return False, f"道路幅{max_width:.1f}m、転回スペース不足、{vehicle_name}進入困難"
         elif has_residential:
             return False, f"道路幅{max_width:.1f}m、住宅街で転回困難、{vehicle_name}進入不可"
         else:
-            return True, f"道路幅{max_width:.1f}m、{vehicle_name}対応可能（転回スペース要確認）"
+            # 可以通行，但需要注意对向车辆
+            return True, f"道路幅{max_width:.1f}m、{vehicle_name}対応可能（対向車通行時は一時停止必要）"
     
-    # 情况3：道路宽度不足，但单向车道可能够用
-    elif effective_lane_width >= required_lane_width:
+    # 情况3：道路宽度刚好满足车辆要求
+    elif max_width >= min_width_required:
         if has_major_road:
-            return True, f"道路幅{max_width:.1f}m、片側車線で{vehicle_name}対応可能（要注意）"
+            # 主干道可能有交通管制
+            return True, f"道路幅{max_width:.1f}m、{vehicle_name}対応可能（対向車通行時は待避所利用必要）"
         else:
-            return False, f"道路幅{max_width:.1f}m、対向車とのすれ違い困難、{vehicle_name}進入不可"
+            # 小路无法安全通行
+            return False, f"道路幅{max_width:.1f}m、対向車とのすれ違い不可、{vehicle_name}進入不可"
     
-    # 情况4：道路宽度明显不足
+    # 情况4：单向车道勉强够用
+    elif effective_lane_width >= required_lane_width:
+        # 即使单向车道够用，也不能影响对向车辆
+        return False, f"道路幅{max_width:.1f}m、対向車通行を妨げるため{vehicle_name}進入不可"
+    
+    # 情况5：道路宽度明显不足
     else:
         return False, f"道路幅{max_width:.1f}m（片側約{effective_lane_width:.1f}m）、{vehicle_name}（最低{min_width_required}m必要）進入不可"
 
