@@ -233,8 +233,8 @@ def check():
             # 3. 地图：OSM 道路
             roads = query_osm_roads(lat, lng)
             
-            # 4. 规则：可达性判断（传入车辆类型）
-            can_access, reason = can_access_fcl(roads, parsed, vehicle_type)
+            # 4. 规则：可达性判断（传入车辆类型和原始地址）
+            can_access, reason = can_access_fcl(roads, parsed, vehicle_type, original_address=addr)
             
             # 5. 最近港口（所有港口中最近的）
             port_info = get_nearest_port(lat, lng)
