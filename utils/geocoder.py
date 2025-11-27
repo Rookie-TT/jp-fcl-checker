@@ -179,6 +179,7 @@ def translate_romaji_to_japanese(address: str):
         # 兵庫県神戸市地名
         'Fukaehama': '深江浜',
         'Higashinada': '東灘',
+        'Nakayamate': '中山手',
         'Kobe': '神戸',
         # 其他常见地名
         'Tokyo': '東京',
@@ -341,15 +342,31 @@ def normalize_address(address: str):
     标准化日本地址格式
     例如：東京都中央区銀座4-6-16 → 東京都中央区銀座4丁目6-16
     """
-    # 移除建筑物名称（在空格或全角空格后的内容）
-    addr = re.sub(r'[　\s]+(.*?(ビル|タワー|マンション|階|F|内|近く|付近).*)$', '', address)
+    # 移除邮编符号 〒
+    addr = address.replace('〒', '')
     
-    # 转换 X-Y-Z 格式为 X丁目Y-Z（如果前面没有丁目）
+    # 转换全角数字为半角数字
+    full_to_half = str.maketrans('０１２３４５６７８９', '0123456789')
+    addr = addr.translate(full_to_half)
+    
+    # 转换全角连字符为半角
+    addr = addr.replace('－', '-').replace('ー', '-')
+    
+    # 移除建筑物名称（在空格或全角空格后的内容）
+    addr = re.sub(r'[　\s]+(.*?(ビル|タワー|マンション|階|F|内|近く|付近).*)$', '', addr)
+    
+    # 转换 X-Y-Z 格式为 X丁目Y-Z（如果前面没有丁目，且不是邮编）
     # 例如：銀座4-6-16 → 銀座4丁目6-16
+    # 但不转换：650-0004（邮编格式：3位-4位）
     def add_chome(match):
         prefix = match.group(1)
         num1 = match.group(2)
         rest = match.group(3)
+        
+        # 检查是否是邮编格式（3位数字-4位数字）
+        if len(num1) == 3 and len(rest.split('-')[0]) == 4:
+            return match.group(0)  # 保持原样
+        
         # 检查前面是否已经有丁目
         if '丁目' not in prefix[-3:]:
             return f"{prefix}{num1}丁目{rest}"
@@ -619,13 +636,13 @@ def simplify_english_address(address: str):
                 main_locations.append(location_name)
                 continue
         
-        # 提取 "门牌号 地名-MACHI/CHO" 格式（如 "109-1 FUKAEHAMA-MACHI" → "FUKAEHAMA-MACHI"）
-        if re.search(r'^\d+-\d+\s+([A-Z]+-?(MACHI|CHO|DORI))', part, re.IGNORECASE):
-            match = re.search(r'^\d+-\d+\s+([A-Z]+-?(MACHI|CHO|DORI))', part, re.IGNORECASE)
-            if match:
-                location_name = match.group(1)
-                main_locations.append(location_name)
-                continue
+        # 提取 "门牌号 地名-MACHI/CHO/DORI" 格式（如 "109-1 FUKAEHAMA-MACHI" → "FUKAEHAMA-MACHI"）
+        # 或 "门牌号 地名dori" 格式（如 "4-11-20 Nakayamatedori" → "Nakayamatedori"）
+        match = re.search(r'^\d+-\d+\s+([A-Za-z]+-?(?:machi|cho|dori))', part, re.IGNORECASE)
+        if match:
+            location_name = match.group(1)
+            main_locations.append(location_name)
+            continue
         
         # 跳过纯门牌号、楼层、邮编
         if re.search(r'^\d+F\b|^NO\.\s*\d+-\d+$|^\d{1,4}-\d{1,3}(?:-\d{1,3})?$|^\d{3}-\d{4}$|^\d{7}$', part, re.IGNORECASE):
@@ -639,6 +656,22 @@ def simplify_english_address(address: str):
                 main_locations.append(main_name)
         elif not re.search(r'\bJAPAN\b', part, re.IGNORECASE):
             main_locations.append(part)
+    
+    # 特殊处理：如果街道号码是 X-Y-Z 格式，尝试构建 "地名 X-chome Y-Z" 格式
+    # 例如：2-15-2, Ginza → Ginza 2-chome 15-2
+    chome_format_address = None
+    if street_number and main_locations:
+        match = re.match(r'(\d+)-(\d+)-(\d+)', street_number)
+        if match:
+            chome = match.group(1)
+            ban_go = f"{match.group(2)}-{match.group(3)}"
+            # 构建 "地名 X-chome Y-Z" 格式
+            for location in main_locations:
+                chome_addr = f"{location} {chome}-chome {ban_go}, Japan"
+                if chome_addr not in candidates:
+                    candidates.insert(1, chome_addr)  # 高优先级
+                    chome_format_address = chome_addr
+                    break
     
     # 优先级策略：完整地址 > 地名组合 > 邮编查询
     # 这样可以避免邮编数据库不准确的问题
@@ -657,32 +690,44 @@ def simplify_english_address(address: str):
             if addr_short not in candidates:
                 candidates.insert(2, addr_short)
     
-    # 如果有地名，构建不带门牌号的地址
+    # 如果有邮编，使用邮编+地名组合（邮编可以精确定位到町丁目）
+    if postal_code and main_locations:
+        # 优先级1: 门牌号 + 地名 + 邮编（最精确）
+        if street_number:
+            full_addr = f"{street_number}, " + ', '.join(main_locations) + f', {postal_code}, Japan'
+            if full_addr not in candidates:
+                candidates.insert(0, full_addr)  # 最高优先级
+        
+        # 优先级2: 地名 + 邮编
+        full_location_postal = ', '.join(main_locations) + f', {postal_code}, Japan'
+        if full_location_postal not in candidates:
+            candidates.insert(1 if street_number else 0, full_location_postal)
+        
+        # 优先级3: 最后2个地名 + 邮编
+        if len(main_locations) >= 2:
+            key_locations = main_locations[-2:]
+            simplified_postal = ', '.join(key_locations) + f', {postal_code}, Japan'
+            if simplified_postal not in candidates:
+                candidates.append(simplified_postal)
+    elif postal_code:
+        # 如果只有邮编没有地名，作为备选（优先级较低）
+        postal_only = f"{postal_code}, Japan"
+        if postal_only not in candidates:
+            candidates.append(postal_only)
+    
+    # 如果有地名，构建不带邮编的地址（优先级较低）
     if main_locations:
-        # 优先级3: 所有地名（不带邮编）
+        # 优先级6: 所有地名（不带邮编）
         full_location = ', '.join(main_locations) + ', Japan'
         if full_location not in candidates:
             candidates.append(full_location)
         
-        # 优先级4: 最后2-3个地名
+        # 优先级7: 最后2-3个地名
         if len(main_locations) >= 2:
             key_locations = main_locations[-2:]
             simplified = ', '.join(key_locations) + ', Japan'
             if simplified not in candidates:
                 candidates.append(simplified)
-    
-    # 最后才尝试邮编查询（因为邮编数据库可能不准确）
-    if main_locations and postal_code:
-        # 门牌号 + 地名 + 邮编
-        if street_number:
-            full_addr = f"{street_number}, " + ', '.join(main_locations) + f', {postal_code}, Japan'
-            if full_addr not in candidates:
-                candidates.append(full_addr)
-        
-        # 地名 + 邮编
-        full_location_postal = ', '.join(main_locations) + f', {postal_code}, Japan'
-        if full_location_postal not in candidates:
-            candidates.append(full_location_postal)
     
     # 移除建筑物名称，但保留街道号码和地名
     parts = address.split(',')
@@ -731,18 +776,68 @@ def simplify_english_address(address: str):
     major_cities = ['Tokyo', 'Osaka', 'Kyoto', 'Yokohama', 'Nagoya', 'Kobe', 'Fukuoka', 'Sapporo']
     for city in major_cities:
         if city in address:
+            # 如果有邮编，优先使用 邮编 + 城市 组合（高优先级，因为邮编可以精确定位到町丁目）
+            if postal_code:
+                postal_city = f"{postal_code}, {city}, Japan"
+                if postal_city not in candidates:
+                    # 插入到第3位（在门牌号组合之后，但在其他候选之前）
+                    insert_pos = min(3, len(candidates))
+                    candidates.insert(insert_pos, postal_city)
+            
             # 找到城市名后的所有内容
             idx = address.find(city)
             addr = address[idx:].strip()
             if addr not in candidates:
                 candidates.append(addr)
             
-            # 只保留城市名 + Japan
+            # 只保留城市名 + Japan（最低优先级）
             addr = f"{city}, Japan"
             if addr not in candidates:
                 candidates.append(addr)
     
     return candidates
+
+
+def fix_chome_in_address(japanese_addr: str, original_english_addr: str) -> str:
+    """
+    修正日文地址中的丁目信息
+    如果英文地址包含 X-Y-Z 格式的门牌号，且 X 是 1-9，则用 X 修正丁目
+    :param japanese_addr: 日文地址（如：東京都中央区銀座四丁目）
+    :param original_english_addr: 原始英文地址（如：2-15-2, Ginza）
+    :return: 修正后的日文地址
+    """
+    import re
+    
+    # 提取英文地址中的门牌号（X-Y-Z 格式）
+    street_match = re.search(r'\b(\d+)-(\d+)(?:-(\d+))?\b', original_english_addr)
+    if not street_match:
+        return japanese_addr
+    
+    first_num = street_match.group(1)
+    
+    # 只有当第一个数字是 1-9 时，才认为是丁目
+    if len(first_num) == 1 and first_num.isdigit():
+        chome_num = int(first_num)
+        
+        # 数字到日文的映射
+        num_to_jp = {
+            1: "一", 2: "二", 3: "三", 4: "四", 5: "五",
+            6: "六", 7: "七", 8: "八", 9: "九"
+        }
+        
+        if chome_num in num_to_jp:
+            jp_chome = num_to_jp[chome_num]
+            
+            # 替换日文地址中的丁目（如：四丁目 → 二丁目）
+            # 匹配模式：一丁目、二丁目、...、九丁目
+            chome_pattern = r'[一二三四五六七八九]丁目'
+            if re.search(chome_pattern, japanese_addr):
+                corrected_addr = re.sub(chome_pattern, f'{jp_chome}丁目', japanese_addr, count=1)
+                if corrected_addr != japanese_addr:
+                    print(f"  修正丁目: {japanese_addr} → {corrected_addr}")
+                    return corrected_addr
+    
+    return japanese_addr
 
 
 def geocode(address: str):
@@ -897,10 +992,15 @@ def geocode(address: str):
                     if pure_number_match:
                         street_number = pure_number_match.group(1)
                 
+                # 修正丁目信息（如果需要）
+                japanese_addr = fix_chome_in_address(japanese_addr, original_address)
+                
                 # 添加门牌号到日文地址
                 if street_number and street_number not in japanese_addr:
                     used_address = f"{japanese_addr}{street_number}"
                     print(f"  添加门牌号到日文地址: {street_number}")
+                else:
+                    used_address = japanese_addr
             
             if addr != original_address:
                 print(f"  ✓ 使用简化地址成功: {addr}")
@@ -917,8 +1017,11 @@ def geocode(address: str):
         # 如果输入是英文且获取到日文地址，返回日文地址
         used_address = japanese_addr if (japanese_addr and not is_japanese) else original_address
         
-        # 如果是英文地址且有日文地址，尝试添加门牌号（排除邮编）
+        # 如果是英文地址且有日文地址，尝试修正丁目和添加门牌号
         if not is_japanese and japanese_addr:
+            # 修正丁目信息
+            japanese_addr = fix_chome_in_address(japanese_addr, original_address)
+            
             street_number = None
             
             # 方法1: 提取 X-X-X 格式的门牌号
