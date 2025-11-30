@@ -1,0 +1,11 @@
+# requirements.txt - 专为你的 jp-fcl-checker 项目定制（Vercel 部署必备）
+Flask==3.0.3
+Jinja2==3.1.4
+PyYAML==6.0.2
+requests==2.32.3
+
+
+
+
+
+
